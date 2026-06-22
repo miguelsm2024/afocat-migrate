@@ -64,7 +64,7 @@
     {
       "id": "non-nullable-default-null",
       "severity": "fatal",
-      "regex": "function\\s+\\w+\\s*\\([^)]*\\b([A-Z]\\w+)\\s+(\\$\\w+)\\s*=\\s*null",
+      "regex": "function\\s+\\w+\\s*\\([^)]*\\b(?<!\\?)(?<!\\?\\\\)([A-Z]\\w+)\\s+(\\$\\w+)\\s*=\\s*null",
       "message": "Parametro con type-hint de clase y default null implicitamente nullable: deprecated en PHP 8.4, debe ser explicito",
       "fix": "?Tipo $param = null (ej: IRouter $r = null -> ?IRouter $r = null)",
       "auto_fixable": true,

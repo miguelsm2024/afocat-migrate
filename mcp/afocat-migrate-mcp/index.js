@@ -93,6 +93,18 @@ function collectPhpFiles(target, opts = {}) {
   return collectFiles(target, { ...opts, exts: PHP_EXTS });
 }
 
+// Heuristica: la linea es comentario puro (docblock, // , /* , {# twig).
+// Evita falsos positivos al matchear codigo comentado o menciones en docblocks.
+function isCommentLine(trimmed) {
+  return (
+    trimmed.startsWith("//") ||
+    trimmed.startsWith("*") ||
+    trimmed.startsWith("/*") ||
+    trimmed.startsWith("*/") ||
+    trimmed.startsWith("{#")
+  );
+}
+
 // Mapea un archivo a su lenguaje frontend por extension (para scoping de reglas).
 function langOf(file) {
   const f = file.toLowerCase();
@@ -163,6 +175,8 @@ async function deprecationScan(args) {
       if (minSev && (sevOrder[rule.severity] || 0) < (sevOrder[minSev] || 0))
         continue;
       lines.forEach((line, idx) => {
+        const t = line.trim();
+        if (isCommentLine(t)) return; // skip comentarios puros (FP)
         rule.re.lastIndex = 0;
         if (rule.re.test(line)) {
           findings.push({
@@ -174,7 +188,7 @@ async function deprecationScan(args) {
             fix: rule.fix,
             auto_fixable: !!rule.auto_fixable,
             playbook: rule.playbook || null,
-            snippet: line.trim().slice(0, 160),
+            snippet: t.slice(0, 160),
           });
         }
       });
@@ -226,6 +240,8 @@ async function frontendScan(args) {
       if (minSev && (sevOrder[rule.severity] || 0) < (sevOrder[minSev] || 0)) continue;
       if ((LEVEL_ORDER[rule.level] || 1) > maxLevel) continue;
       lines.forEach((line, idx) => {
+        const t = line.trim();
+        if (isCommentLine(t)) return; // skip comentarios puros (FP)
         rule.re.lastIndex = 0;
         if (rule.re.test(line)) {
           findings.push({
