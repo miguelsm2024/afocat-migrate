@@ -1,7 +1,7 @@
 {
   "name": "afocat-migrate",
-  "version": "1.0.0",
-  "description": "Toolkit de migracion a PHP 8.2 para sys_Afocat (framework Ocrend). Skills, subagentes, hooks y MCP server para migrar de forma ordenada: lint, deteccion de deprecaciones, auditoria de seguridad y sesiones, verificacion de frontend y compatibilidad Ocrend.",
+  "version": "1.1.0",
+  "description": "Toolkit de upgrade integral para proyectos Ocrend: migracion backend a PHP 8.2 + analisis y correccion de frontend (JS/CSS/HTML/Twig) por niveles (modernize/restructure/redesign). Skills, subagentes, hooks y MCP server: lint, deprecation_scan, frontend_scan, auditoria de seguridad y sesiones, compatibilidad Ocrend.",
   "author": {
     "name": "miguelsm2024",
     "email": "elwar001@gmail.com"

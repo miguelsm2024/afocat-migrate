@@ -10,26 +10,30 @@ Plugin de Claude Code para migrar proyectos **Ocrend 2** a **PHP 8.2** de forma 
 | Skill | `migrate-project` | Migra un proyecto Ocrend COMPLETO end-to-end (pipeline ordenado) |
 | Skill | `migrate-file` | Migrar UN archivo por procedimiento del playbook |
 | Skill | `migrate-verify` | Verificacion end-to-end (php -l, scan, smoke, error_log) |
+| Skill | `frontend-upgrade` | **Corrige** frontend (JS/CSS/HTML/Twig). Pregunta el nivel: modernize/restructure/redesign |
+| Skill | `frontend-verify` | Verifica (read-only) consistencia frontend con el backend migrado |
 | Skill | `security-audit` | Auditoria defensiva (SQLi, XSS, hashes, secretos) |
 | Skill | `session-audit` | Sesiones Ocrend bajo PHP 8.2 |
-| Skill | `frontend-verify` | HTML/CSS/JS/Twig consistentes con el backend migrado |
 | Skill | `ocrend-check` | Compatibilidad del core (Twig/Symfony/Silex/errores) |
-| Agente | `php-migrator` | Aplica fixes (1-2 archivos) |
+| Agente | `php-migrator` | Aplica fixes PHP (1-2 archivos) |
+| Agente | `frontend-migrator` | Aplica fixes frontend por nivel (1-2 archivos; rechaza redesign sin spec) |
 | Agente | `php-investigator` | Localiza riesgos (read-only) |
 | Agente | `php-reviewer` | Revisa regresiones post-migracion |
 | Agente | `security-tester` | Barrido de seguridad defensiva |
 | Agente | `ocrend-compat` | Checklist PASS/FAIL del core |
 | Hook | SessionStart | Inyecta contexto + estado de migracion |
 | Hook | PostToolUse | `php -l` automatico al editar/crear `.php` |
-| MCP | `php_lint` | `php -l` recursivo (excluye vendor/node_modules/.git/.cache + dups) |
+| MCP | `php_lint` | `php -l` recursivo (excluye vendor/node_modules/.git/.cache/dist/build + dups) |
 | MCP | `deprecation_scan` | Aplica `deprecation-rules.json` (mismas exclusiones) |
+| MCP | `frontend_scan` | Aplica `frontend-rules.json` a JS/CSS/HTML/Twig (excluye vendors/minificados/libs); scope por lenguaje y nivel |
 | MCP | `db_schema` | Introspeccion `db_afocat` (+ tablas dinamicas) |
 | MCP | `ftp_deploy` | Sube a prod via FTP/FTPS |
 
 ## Knowledge base
-- `knowledge/playbook.md` — procedimientos por tipo de archivo (fuente de verdad, auto-actualizable).
+- `knowledge/playbook.md` — procedimientos por tipo de archivo (backend + frontend §14b, fuente de verdad, auto-actualizable).
 - `knowledge/ocrend-php8.md` — especifico del core Ocrend.
-- `knowledge/deprecation-rules.json` — reglas machine-readable que consume el MCP.
+- `knowledge/deprecation-rules.json` — reglas PHP 8.x machine-readable (consume `deprecation_scan`).
+- `knowledge/frontend-rules.json` — reglas JS/CSS/HTML/Twig con `level` y `category` (consume `frontend_scan`).
 
 ## Instalacion
 
@@ -65,8 +69,12 @@ O apuntar la config de plugins de Claude Code a esta carpeta.
        (php-investigator -> php-migrator -> php-reviewer)
   -> /migrate-verify          # confirmar antes de subir
   -> ftp_deploy (MCP)         # a prod
-security-audit / session-audit / frontend-verify  # transversales
+/frontend-upgrade             # frontend: PREGUNTA nivel (modernize/restructure/redesign) y corrige
+  -> /frontend-verify         # verificar consistencia post-upgrade
+security-audit / session-audit  # transversales
 ```
+
+**Backend y frontend:** el backend lleva el proyecto a PHP 8.2; `/frontend-upgrade` eleva JS/CSS/HTML/Twig. El frontend **siempre pregunta hasta dónde llegar** (modernize ⊂ restructure ⊂ redesign); nunca asume el nivel.
 
 ## Reutilizar en otro proyecto Ocrend
 

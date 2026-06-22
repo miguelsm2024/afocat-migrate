@@ -34,18 +34,39 @@ const OCREND_INI =
   process.env.AFOCAT_OCREND_INI ||
   path.join(PROJECT_ROOT, "Ocrend", "Kernel", "Config", "Ocrend.ini.yml");
 const RULES_PATH = path.join(__dirname, "..", "..", "knowledge", "deprecation-rules.json");
+const FRONTEND_RULES_PATH = path.join(__dirname, "..", "..", "knowledge", "frontend-rules.json");
 
 // --- Helpers ---
-// Carpetas que nunca aportan codigo a migrar: deps + cache de Twig compilado.
+// Carpetas que nunca aportan codigo a migrar: deps + cache de Twig compilado + builds.
 // Sin excluir .cache el scan se infla ~2.5x con templates compilados Twig 2
 // (que Twig 3 ni siquiera carga). Override: includeAll=true.
-const SKIP_DIRS = ["vendor", "node_modules", ".git", ".cache"];
+const SKIP_DIRS = [
+  "vendor",
+  "node_modules",
+  ".git",
+  ".cache",
+  "dist",
+  "build",
+  "vendors", // libs frontend de themes admin (app-assets/vendors/*)
+  "bower_components",
+];
 // Backups manuales tipo "Archivo (1).php", "Archivo (2).php" (FileZilla / copia-pega).
 // Duplican findings y nunca son el archivo vivo.
 const DUP_FILE_RE = / \(\d+\)\.php$/;
+// Minificados: generados, no fuente. Disparan falsos positivos (todo en una linea).
+const MIN_FILE_RE = /\.min\.(js|css)$/i;
+// Librerias frontend de terceros (no son codigo del proyecto). Aunque no esten
+// minificadas inflan el scan ~10x. Override: include_all=true.
+const VENDOR_FILE_RE =
+  /(^|[\\/])(jquery[.\-]|bootstrap[.\-]|popper|select2|datatables?|moment|chart(js)?[.\-]|d3[.\-]|echarts|flot|fullcalendar|swiper|slick|owl\.carousel|tinymce|ckeditor|dropzone|sweetalert|toastr|raphael|morris|underscore|lodash|modernizr|jquery-ui|datepicker|daterangepicker|nouislider|wizard|sparkline)/i;
 
-async function collectPhpFiles(target, opts = {}) {
-  const { includeAll = false } = opts;
+// Extensiones por capa. PHP = back-compat; FRONTEND = capa nueva (incluye Twig).
+const PHP_EXTS = [".php"];
+const FRONTEND_EXTS = [".js", ".css", ".scss", ".html", ".htm", ".twig", ".phtml"];
+
+// Recolector generico por extension. exts = lista de extensiones (con punto).
+async function collectFiles(target, opts = {}) {
+  const { includeAll = false, exts = PHP_EXTS } = opts;
   const st = await stat(target);
   if (st.isFile()) return [target];
   const out = [];
@@ -55,14 +76,31 @@ async function collectPhpFiles(target, opts = {}) {
       if (entry.isDirectory()) {
         if (!includeAll && SKIP_DIRS.includes(entry.name)) continue;
         await walk(full);
-      } else if (entry.name.endsWith(".php")) {
+      } else if (exts.some((e) => entry.name.toLowerCase().endsWith(e))) {
         if (!includeAll && DUP_FILE_RE.test(entry.name)) continue;
+        if (!includeAll && MIN_FILE_RE.test(entry.name)) continue;
+        if (!includeAll && VENDOR_FILE_RE.test(entry.name)) continue;
         out.push(full);
       }
     }
   }
   await walk(target);
   return out;
+}
+
+// Wrapper back-compat: el resto del codigo (php_lint, deprecation_scan) lo usa tal cual.
+function collectPhpFiles(target, opts = {}) {
+  return collectFiles(target, { ...opts, exts: PHP_EXTS });
+}
+
+// Mapea un archivo a su lenguaje frontend por extension (para scoping de reglas).
+function langOf(file) {
+  const f = file.toLowerCase();
+  if (f.endsWith(".js")) return "js";
+  if (f.endsWith(".css") || f.endsWith(".scss")) return "css";
+  if (f.endsWith(".twig")) return "twig";
+  if (f.endsWith(".html") || f.endsWith(".htm") || f.endsWith(".phtml")) return "html";
+  return "other";
 }
 
 function resolveTarget(p) {
@@ -148,6 +186,83 @@ async function deprecationScan(args) {
     scanned: files.length,
     total_findings: findings.length,
     by_severity: bySev,
+    findings: findings.slice(0, args.limit || 500),
+    truncated: findings.length > (args.limit || 500),
+  };
+}
+
+// Niveles de upgrade frontend: redesign incluye restructure incluye modernize.
+const LEVEL_ORDER = { modernize: 1, restructure: 2, redesign: 3 };
+
+async function frontendScan(args) {
+  const ruleset = JSON.parse(await readFile(FRONTEND_RULES_PATH, "utf8"));
+  const compiled = (ruleset.rules || []).map((r) => ({
+    ...r,
+    re: new RegExp(r.regex, "g"),
+    applies_to: r.applies_to || [],
+  }));
+
+  const target = resolveTarget(args.path);
+  const files = await collectFiles(target, {
+    includeAll: !!args.include_all,
+    exts: FRONTEND_EXTS,
+  });
+
+  const minSev = args.severity || null; // fatal|warning|info
+  const sevOrder = { fatal: 3, warning: 2, info: 1 };
+  // Nivel elegido: incluir reglas de ese nivel y los inferiores.
+  const maxLevel = args.level ? LEVEL_ORDER[args.level] || 3 : 3;
+  const langFilter = args.lang || null; // js|css|html|twig
+
+  const findings = [];
+  for (const f of files) {
+    const lang = langOf(f);
+    if (langFilter && lang !== langFilter) continue;
+    const content = await readFile(f, "utf8");
+    const lines = content.split(/\r?\n/);
+    for (const rule of compiled) {
+      // Scoping por lenguaje: la regla solo aplica a sus extensiones.
+      if (rule.applies_to.length && !rule.applies_to.includes(lang)) continue;
+      if (minSev && (sevOrder[rule.severity] || 0) < (sevOrder[minSev] || 0)) continue;
+      if ((LEVEL_ORDER[rule.level] || 1) > maxLevel) continue;
+      lines.forEach((line, idx) => {
+        rule.re.lastIndex = 0;
+        if (rule.re.test(line)) {
+          findings.push({
+            file: f,
+            line: idx + 1,
+            lang,
+            id: rule.id,
+            severity: rule.severity,
+            level: rule.level,
+            category: rule.category || null,
+            message: rule.message,
+            fix: rule.fix,
+            auto_fixable: !!rule.auto_fixable,
+            playbook: rule.playbook || null,
+            snippet: line.trim().slice(0, 160),
+          });
+        }
+      });
+    }
+  }
+  const bySev = {};
+  const byLevel = {};
+  const byLang = {};
+  const byCat = {};
+  for (const fn of findings) {
+    bySev[fn.severity] = (bySev[fn.severity] || 0) + 1;
+    byLevel[fn.level] = (byLevel[fn.level] || 0) + 1;
+    byLang[fn.lang] = (byLang[fn.lang] || 0) + 1;
+    if (fn.category) byCat[fn.category] = (byCat[fn.category] || 0) + 1;
+  }
+  return {
+    scanned: files.length,
+    total_findings: findings.length,
+    by_severity: bySev,
+    by_level: byLevel,
+    by_language: byLang,
+    by_category: byCat,
     findings: findings.slice(0, args.limit || 500),
     truncated: findings.length > (args.limit || 500),
   };
@@ -287,6 +402,38 @@ const TOOLS = [
     },
   },
   {
+    name: "frontend_scan",
+    description:
+      "Escanea frontend (.js/.css/.scss/.html/.htm/.twig/.phtml) con knowledge/frontend-rules.json. Ignora vendor/node_modules/.git/.cache/dist/build, minificados '*.min.js/.css' y backups '* (N)'. Reglas scopeadas por lenguaje y por nivel de upgrade. Devuelve file:line, regla, severidad, level, categoria, fix.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: { type: "string", description: "Archivo o carpeta (rel a project root o absoluta)" },
+        include_all: {
+          type: "boolean",
+          description: "Incluir vendor/node_modules/.git/.cache/dist/build, minificados y backups (default false).",
+        },
+        level: {
+          type: "string",
+          enum: ["modernize", "restructure", "redesign"],
+          description:
+            "Nivel de upgrade: incluye reglas de ese nivel y los inferiores (redesign>restructure>modernize). Default redesign (todo).",
+        },
+        lang: {
+          type: "string",
+          enum: ["js", "css", "html", "twig"],
+          description: "Filtrar por lenguaje frontend",
+        },
+        severity: {
+          type: "string",
+          enum: ["fatal", "warning", "info"],
+          description: "Severidad minima a reportar",
+        },
+        limit: { type: "number", description: "Max findings (default 500)" },
+      },
+    },
+  },
+  {
     name: "db_schema",
     description:
       "Introspeccion de MySQL db_afocat (credenciales leidas de Ocrend.ini.yml). Sin args: lista tablas + detecta tablas dinamicas __SERIE_ANIO. Con `table`: columnas de esa tabla.",
@@ -335,6 +482,9 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
         break;
       case "deprecation_scan":
         result = await deprecationScan(args);
+        break;
+      case "frontend_scan":
+        result = await frontendScan(args);
         break;
       case "db_schema":
         result = await dbSchema(args);

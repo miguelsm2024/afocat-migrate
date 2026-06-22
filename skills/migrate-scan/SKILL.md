@@ -20,11 +20,14 @@ Punto de entrada de la migracion. Produce un inventario priorizado y un `migrati
    - `mPDF/PHPExcel-1.8/Classes/**` -> PHPEXCEL-PATCH
    - `*.yml/.ini` -> CONFIG
 
-3. **Correr MCP** `deprecation_scan` sobre carpetas clave (severity:"fatal" primero, luego warning). Y `php_lint` para detectar lo que ya rompe.
+3. **Correr MCP backend**: `deprecation_scan` sobre carpetas clave (severity:"fatal" primero, luego warning) + `php_lint` para detectar lo que ya rompe.
 
-4. **Priorizar**: fatales > warnings. Core/api primero (bloquean todo), luego models/controllers, luego templates.
+4. **Correr MCP frontend** (analisis global): `frontend_scan` sobre el proyecto. Reporta por `by_language` (js/css/html/twig), `by_level` (modernize/restructure/redesign) y `by_category` (legacy/a11y/xss/perf). NO elige nivel aqui — solo inventaria todos.
+   - **Ruido en themes admin**: proyectos con bundle de tema (`app-assets/`, charts/tables demo) inflan el scan. Las libs conocidas y `vendors/`/minificados ya se excluyen. Para reducir mas: scopear `path` al codigo frontend propio, o filtrar `severity:"warning"` (omite info como `css-important`/`console.log`).
 
-5. **Escribir `migration-state.json`** en `AFOCAT_PROJECT_ROOT`:
+5. **Priorizar**: fatales > warnings. Backend: core/api primero (bloquean todo), luego models/controllers, luego templates. Frontend: se prioriza al elegir nivel en `/frontend-upgrade` (no en el scan).
+
+6. **Escribir `migration-state.json`** en `AFOCAT_PROJECT_ROOT`:
 ```json
 {
   "scanned_at": "<fecha>",
@@ -34,11 +37,18 @@ Punto de entrada de la migracion. Produce un inventario priorizado y un `migrati
      "fatal": 0, "warning": 0, "notes": ""}
   ],
   "priority_order": ["..."],
+  "frontend": {
+    "scanned": 0,
+    "by_language": {"js": 0, "css": 0, "html": 0, "twig": 0},
+    "by_level": {"modernize": 0, "restructure": 0, "redesign": 0},
+    "by_category": {"legacy": 0, "a11y": 0, "xss": 0, "perf": 0},
+    "files": [{"path": "...", "lang": "js", "findings": 0, "status": "pending"}]
+  },
   "done": [], "pending": [], "blocked": []
 }
 ```
 
-6. **Reportar**: tabla resumen por procedimiento (cuantos archivos, cuantos fatales). NO migrar nada todavia — solo inventariar. Sugerir el primer `/migrate-file`.
+7. **Reportar**: dos tablas — (a) backend por procedimiento (archivos, fatales), (b) frontend por lenguaje y nivel. NO migrar ni corregir nada todavia — solo inventariar. Sugerir el primer `/migrate-file` (backend) y `/frontend-upgrade` (frontend, que preguntara el nivel).
 
 ## Reglas
 - No tocar codigo en este skill. Solo lectura + estado.

@@ -4,14 +4,21 @@
 > plugin, cómo está construido y cómo continuar con el objetivo inicial sin redescubrir
 > contexto. Pensado para anexarse a la nueva ubicación de `Migrate_Php_8/`.
 >
-> Fecha: 2026-06-22 · Autor: miguelsm2024 (elwar001@gmail.com) · Versión plugin: 1.0.0
+> Fecha: 2026-06-22 · Autor: miguelsm2024 (elwar001@gmail.com) · Versión plugin: 1.1.0
 
 ---
 
 ## 1. Objetivo del plugin (para qué está destinado)
 
-Migrar proyectos **Ocrend Framework 2** (PHP 7 / MVC + Silex) a **PHP 8.2** de forma
-**ordenada, repetible y con consumo mínimo de tokens**.
+Llevar proyectos **Ocrend Framework 2** (PHP 7 / MVC + Silex) a **su siguiente nivel**,
+**backend y frontend**, de forma **ordenada, repetible y con consumo mínimo de tokens**:
+
+- **Backend:** migración a **PHP 8.2** (deprecaciones, null-safety, Twig/Symfony, Silex→MicroApp).
+- **Frontend (v1.1):** análisis global + corrección de **JS/CSS/HTML/Twig** por **niveles**
+  (`modernize` ⊂ `restructure` ⊂ `redesign`). El plugin **siempre pregunta hasta dónde llegar**
+  con el frontend (vía `/frontend-upgrade`); nunca asume el nivel.
+
+Flujo histórico (v1.0, sigue vigente):
 
 - **Origen:** `sys_Afocat` (ERP del cliente AFOCAT, sobre Ocrend 2).
 - **Alcance probado:** reutilizable en **cualquier proyecto Ocrend** de `xampp/htdocs`.
@@ -78,8 +85,9 @@ Servidor stdio en Node. Expone **4 tools**. Config 100% por variables de entorno
 
 | Tool | Qué hace | Notas clave |
 |---|---|---|
-| `php_lint` | `php -l` recursivo sobre archivo/carpeta | Excluye `vendor/node_modules/.git/.cache` y backups `* (N).php`. Devuelve solo los que fallan. |
+| `php_lint` | `php -l` recursivo sobre archivo/carpeta | Excluye `vendor/node_modules/.git/.cache/dist/build` y backups `* (N).php`. Devuelve solo los que fallan. |
 | `deprecation_scan` | Aplica `deprecation-rules.json` | Devuelve `file:line`, regla, severidad, fix, playbook. Filtro `severity`. `include_security:true` añade reglas SQLi/XSS/etc. `limit` default 500. |
+| `frontend_scan` (v1.1) | Aplica `frontend-rules.json` a JS/CSS/HTML/Twig | Reglas scopeadas por lenguaje (`applies_to`) y por nivel (`level`). Devuelve `file:line`, `lang`, `severity`, `level`, `category`, `fix`. Filtros `level`/`lang`/`severity`. Excluye `vendors/`, `bower_components`, minificados `*.min.*` y libs conocidas (jquery/bootstrap/datatables/etc.). |
 | `db_schema` | Introspección MySQL `db_afocat` | Credenciales leídas de `Ocrend.ini.yml` (NO duplicadas en `.env`). Detecta tablas dinámicas `__SERIE_AÑO` (`__FL_2023`). Con `table`: columnas. |
 | `ftp_deploy` | Sube archivo migrado a prod vía FTP/FTPS | Credenciales de `.env`. Exige host/user/pass. `dry_run:true` previsualiza la ruta remota sin subir. |
 
@@ -105,6 +113,7 @@ findings; excluyendo `.cache/` + dups bajó a **180 reales**. Override con `incl
 | `migrate-project` | Migra un proyecto Ocrend COMPLETO end-to-end (pipeline ordenado) | Recomendado para proyecto nuevo |
 | `migrate-file` | Migra UN archivo por el procedimiento del playbook (3-4 tool calls) | Granular, uno por uno |
 | `migrate-verify` | Verificación end-to-end (php -l, scan residual, smoke web, error_log) | Antes de subir a prod |
+| `frontend-upgrade` (v1.1) | **Corrige** frontend (JS/CSS/HTML/Twig). **Paso 0: pregunta el nivel** modernize/restructure/redesign. Escanea, delega a `frontend-migrator`, verifica | Para elevar el frontend |
 | `ocrend-check` | Compatibilidad del CORE (Twig/Symfony/Silex/errores). Bloquea todo si falla | PRIMERO, antes de models/controllers |
 | `security-audit` | Auditoría defensiva (SQLi, XSS, hashes, secretos, uploads, API sin auth) | Transversal |
 | `session-audit` | Sesiones Ocrend bajo PHP 8.2 (cookies, gc_maxlifetime, regenerate_id) | Transversal |
@@ -116,6 +125,7 @@ findings; excluyendo `.cache/` + dups bajó a **180 reales**. Override con `incl
 |---|---|---|---|
 | `php-investigator` | Localiza riesgos (read-only). Tabla `file:line` por severidad. NO sugiere fixes | Read, Grep, Glob, Bash | Solo localiza |
 | `php-migrator` | Aplica fixes mecánicos (MODEL, PDF-TEMPLATE, etc.). Devuelve recibo de cambios | Read, Edit, Write, Grep, Glob, Bash | **Máx 2 archivos**; rechaza 3+ |
+| `frontend-migrator` (v1.1) | Aplica fixes frontend por nivel (JS-MODERNIZE, HTML-STRUCTURE, CSS-CLEANUP, FRONTEND-REDESIGN). Recibo de cambios | Read, Edit, Write, Grep, Glob, Bash | **Máx 2 archivos**; **rechaza redesign sin spec de diseño** |
 | `php-reviewer` | Revisa regresiones post-migración. 1 línea por hallazgo | Read, Grep, Bash | No reescribe |
 | `ocrend-compat` | Checklist PASS/FAIL del core | Read, Grep, Glob, Bash | Read-only + php -l |
 | `security-tester` | Barrido de seguridad **defensiva**. Identifica y reporta, NO genera exploits | Read, Grep, Glob, Bash | Solo defensivo |
@@ -134,9 +144,12 @@ findings; excluyendo `.cache/` + dups bajó a **180 reales**. Override con `incl
   hubo hallazgo nuevo se integra al playbook; si no, se declara "Sin nuevos hallazgos".
 - **`ocrend-php8.md`** — específico del core Ocrend: mapa del Kernel, puntos críticos PHP
   8.2 por impacto, manejo de errores, config `Ocrend.ini.yml`, sesiones, rutas prod vs local.
-- **`deprecation-rules.json`** — reglas regex (sintaxis JS) que consume el MCP. 22 `rules`
+- **`deprecation-rules.json`** — reglas regex (sintaxis JS) que consume `deprecation_scan`. 23 `rules`
   PHP 8.x + 5 `security_rules`. Severidad: `fatal` (rompe runtime) / `warning` (deprecation
   no fatal) / `info` (riesgo lógico) / `high`/`medium` (seguridad).
+- **`frontend-rules.json`** (v1.1) — reglas regex JS/CSS/HTML/Twig que consume `frontend_scan`. 22 reglas
+  con campos extra `applies_to` (lenguaje), `level` (modernize/restructure/redesign) y `category`
+  (legacy/a11y/xss/perf). Severidad `fatal/warning/info`.
 
 ---
 

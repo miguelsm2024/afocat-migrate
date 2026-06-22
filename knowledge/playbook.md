@@ -29,6 +29,12 @@ Antes de cerrar cada tarea de migración:
 | `mPDF/PHPExcel-1.8/Classes/**/*.php` | Lib PHPExcel abandonada | `[PHPEXCEL-PATCH]` |
 | `Ocrend.ini.yml` u otros `.yml/.ini` | Configuración | `[CONFIG]` (revisar manual) |
 | Errores 500 silentes post-migración | Arquitectura de errores | `[ERROR-HANDLING]` |
+| `**/*.js` (no `.min.js`, no `vendors/`) | JavaScript del proyecto | `[JS-MODERNIZE]` |
+| `views/**/*.{html,htm,twig,phtml}` | Estructura HTML / Twig | `[HTML-STRUCTURE]` |
+| `**/*.{css,scss}` (no `.min.css`) | Estilos | `[CSS-CLEANUP]` |
+| Re-maquetado de pantalla (nivel redesign) | Layout / UX | `[FRONTEND-REDESIGN]` |
+
+> **Frontend = nivel en runtime.** Los procedimientos `[JS-MODERNIZE]`/`[HTML-STRUCTURE]`/`[CSS-CLEANUP]`/`[FRONTEND-REDESIGN]` se aplican según el **nivel** que el usuario elige en `/frontend-upgrade` (modernize ⊂ restructure ⊂ redesign). El skill SIEMPRE pregunta el nivel; nunca se asume.
 
 > **Nota** sobre `[PDF-TEMPLATE]`: aplica también a endpoints que **NO** generan PDF pero sí reciben JSON (SUNAT, anulación, resumen boletas). Los pasos de `$mpdf->Output('F')` y `function ceros` quedan como no-ops seguros si el archivo no los contiene.
 
@@ -609,6 +615,47 @@ Invoke-WebRequest -Uri "http://localhost:8080/sys_Afocat/logout/" -MaximumRedire
 # Producción — error_log
 # Descargar /home2/afoca4w2/public_html/erp/error_log via FTP, leer últimas 30 líneas
 ```
+
+---
+
+## 14b. Procedimientos Frontend (JS / HTML / CSS)
+
+> Se aplican vía `/frontend-upgrade`, que **pregunta el nivel** (modernize/restructure/redesign). Reglas machine-readable en `frontend-rules.json`; scan vía MCP `frontend_scan`. Corrector: agente `frontend-migrator` (máx 2 archivos). Cada regla lleva `level` y `category`.
+
+### `[JS-MODERNIZE]` — `**/*.js`
+**Nivel modernize.** Qué arregla:
+- `var` → `let`/`const` (revisar scope antes; no auto-ciego).
+- `==`/`!=` → `===`/`!==` (salvo comparación intencional con null).
+- `document.write()` → `createElement`/`innerHTML` sobre contenedor.
+- `$.ajax/$.get/$.post` → `fetch()` + async/await (mantener manejo de códigos API 1/2/3/6/7/99).
+- jQuery `.live/.bind/.delegate` → `.on()`/`.off()` o `addEventListener`.
+- `escape/unescape` → `encodeURIComponent`/`decodeURIComponent`.
+- `eval()` → evitar (XSS); `new Array()/Object()` → `[]`/`{}`; quitar `console.log` de prod.
+
+**Verificación:** si hay `eslint` en el proyecto, correrlo; si no, revisión visual. No agregar deps.
+
+### `[HTML-STRUCTURE]` — `views/**/*.{html,htm,twig,phtml}`
+**Niveles modernize→restructure.** Qué arregla:
+- Tags deprecados `center/font/marquee/big/strike/tt` → semántico + CSS.
+- `<img>` sin `alt`, `<html>` sin `lang` (a11y).
+- Twig: `{% spaceless %}` → `{% apply spaceless %}…{% endapply %}` (Twig 3). `|raw` → revisar XSS.
+- **restructure:** extraer `onclick=`/handlers inline a archivo JS (`addEventListener`); extraer `style=` inline a clase CSS.
+
+**No romper:** rutas de assets que el PHP referencia, sintaxis Twig 3, encoding (BOM antes de `<?php` rompe render — ver `[CONTROLLER]`).
+
+### `[CSS-CLEANUP]` — `**/*.{css,scss}`
+**Niveles modernize→restructure.** Qué arregla:
+- Prefijos de proveedor obsoletos (`-webkit-border-radius`, etc.) → propiedad estándar.
+- **restructure:** `!important` → aumentar especificidad/reordenar; `font-size: Npx` → `rem`.
+- Dedupe de reglas repetidas.
+
+**Ruido:** themes admin (`app-assets/`) generan miles de `!important`/inline. Scopear `path` al CSS propio o filtrar `severity:"warning"`.
+
+### `[FRONTEND-REDESIGN]` — re-maquetado (solo nivel redesign)
+**Nivel redesign. Alto riesgo, subjetivo.** Qué cubre:
+- Layout `float`/tablas-de-layout → flexbox/grid; responsive/breakpoints.
+- **EXIGE spec de diseño por pantalla**: layout objetivo, breakpoints, referencia visual. El agente `frontend-migrator` **rechaza redesign sin spec**.
+- Siempre mostrar antes/después. Nunca re-maquetar a ciegas. No cambiar copy ni lógica.
 
 ---
 

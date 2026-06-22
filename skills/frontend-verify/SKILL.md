@@ -25,5 +25,6 @@ Asegura que el frontend siga consistente cuando el backend pasa a PHP 8.2.
 Lista `archivo:linea | problema | fix`. Separar HTML / CSS / JS / Twig.
 
 ## Reglas
-- No re-maquetar ni cambiar diseño. Solo consistencia estructural y compatibilidad con el backend migrado.
-- Foco en lo que la migracion PHP 8 pudo romper (respuestas JSON, Twig, encoding), no en deuda de CSS preexistente.
+- **Este skill solo VERIFICA** (read-only): consistencia estructural y compatibilidad con el backend migrado. Para APLICAR correcciones o elevar el frontend, usar `/frontend-upgrade` (pregunta el nivel: modernize/restructure/redesign).
+- Foco en lo que la migracion PHP 8 pudo romper (respuestas JSON, Twig, encoding) y en regresiones tras un upgrade.
+- Usar como paso de verificacion DESPUES de `/frontend-upgrade`.
