@@ -1,0 +1,19 @@
+{
+  "name": "afocat-migrate-mcp",
+  "version": "1.0.0",
+  "description": "MCP server para migracion PHP 8.2 de sys_Afocat: php-lint, deprecation-scan, db-schema, ftp-deploy",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "basic-ftp": "^5.0.5",
+    "mysql2": "^3.11.0",
+    "yaml": "^2.5.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

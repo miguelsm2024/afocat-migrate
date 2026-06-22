@@ -1,0 +1,27 @@
+{
+  "name": "afocat-migrate",
+  "version": "1.0.0",
+  "description": "Toolkit de migracion a PHP 8.2 para sys_Afocat (framework Ocrend). Skills, subagentes, hooks y MCP server para migrar de forma ordenada: lint, deteccion de deprecaciones, auditoria de seguridad y sesiones, verificacion de frontend y compatibilidad Ocrend.",
+  "author": {
+    "name": "miguelsm2024",
+    "email": "elwar001@gmail.com"
+  },
+  "keywords": ["php8", "migration", "ocrend", "afocat", "legacy", "security"],
+  "mcpServers": {
+    "afocat-migrate": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp/afocat-migrate-mcp/index.js"],
+      "env": {
+        "AFOCAT_PROJECT_ROOT": "${AFOCAT_PROJECT_ROOT}",
+        "AFOCAT_PHP_BIN": "${AFOCAT_PHP_BIN}",
+        "AFOCAT_OCREND_INI": "${AFOCAT_OCREND_INI}",
+        "AFOCAT_FTP_HOST": "${AFOCAT_FTP_HOST}",
+        "AFOCAT_FTP_USER": "${AFOCAT_FTP_USER}",
+        "AFOCAT_FTP_PASS": "${AFOCAT_FTP_PASS}",
+        "AFOCAT_FTP_REMOTE_ROOT": "${AFOCAT_FTP_REMOTE_ROOT}",
+        "AFOCAT_FTP_SECURE": "${AFOCAT_FTP_SECURE}"
+      }
+    }
+  },
+  "hooks": "${CLAUDE_PLUGIN_ROOT}/hooks/hooks.json"
+}

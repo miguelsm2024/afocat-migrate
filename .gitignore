@@ -1,0 +1,10 @@
+# Secretos — NUNCA commitear
+.env
+
+# Dependencias MCP
+mcp/afocat-migrate-mcp/node_modules/
+mcp/**/package-lock.json
+
+# Estado/temporales
+*.log
+migration-state.local.json

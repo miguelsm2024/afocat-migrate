@@ -1,0 +1,252 @@
+{
+  "version": "1.0.0",
+  "description": "Reglas de deteccion de incompatibilidades PHP 8.x para sys_Afocat / Ocrend. Regex en sintaxis JavaScript (consumidas por el MCP server deprecation-scan). severity: fatal=rompe en runtime PHP8, warning=deprecation no fatal, info=riesgo logico.",
+  "rules": [
+    {
+      "id": "curly-string-offset",
+      "severity": "fatal",
+      "regex": "\\$[a-zA-Z_]\\w*(?:\\[[^\\]]+\\]|->[a-zA-Z_]\\w*)*\\{(\\d+|\\$[a-zA-Z_]\\w*|\\+\\+\\$\\w+|--\\$\\w+)\\}",
+      "message": "Acceso por offset con llaves $str{...} eliminado en PHP 8.0",
+      "fix": "Reemplazar {} por [] : $str{0} -> $str[0]. CUIDADO: {$var['k']} dentro de strings double-quoted es interpolacion valida, NO tocar.",
+      "auto_fixable": true,
+      "playbook": "PHPEXCEL-PATCH"
+    },
+    {
+      "id": "money-format",
+      "severity": "fatal",
+      "regex": "money_format\\s*\\(",
+      "message": "money_format() eliminada en PHP 8.0",
+      "fix": "number_format((float)$var, 2, '.', ',')",
+      "auto_fixable": false,
+      "playbook": "PDF-TEMPLATE / MODEL"
+    },
+    {
+      "id": "each-removed",
+      "severity": "fatal",
+      "regex": "(?<![\\w>])each\\s*\\(",
+      "message": "each() eliminada en PHP 8.0",
+      "fix": "foreach o key()/current()/next()",
+      "auto_fixable": false
+    },
+    {
+      "id": "create-function",
+      "severity": "fatal",
+      "regex": "create_function\\s*\\(",
+      "message": "create_function() eliminada en PHP 8.0",
+      "fix": "closure: function() use(...) { }",
+      "auto_fixable": false
+    },
+    {
+      "id": "preg-replace-e",
+      "severity": "fatal",
+      "regex": "preg_replace\\s*\\(\\s*(['\"]).*\\1e",
+      "message": "Modificador /e de preg_replace eliminado en PHP 7.0",
+      "fix": "preg_replace_callback",
+      "auto_fixable": false
+    },
+    {
+      "id": "http-raw-post-data",
+      "severity": "fatal",
+      "regex": "\\$HTTP_RAW_POST_DATA",
+      "message": "$HTTP_RAW_POST_DATA eliminado en PHP 7.0",
+      "fix": "file_get_contents('php://input')",
+      "auto_fixable": false
+    },
+    {
+      "id": "sizeof",
+      "severity": "warning",
+      "regex": "(?<![\\w>])sizeof\\s*\\(",
+      "message": "sizeof() es alias de count(); preferir count() (count() sobre no-Countable es TypeError en PHP 8)",
+      "fix": "count(...)",
+      "auto_fixable": true,
+      "playbook": "CONTROLLER / MODEL"
+    },
+    {
+      "id": "non-nullable-default-null",
+      "severity": "fatal",
+      "regex": "function\\s+\\w+\\s*\\([^)]*\\b([A-Z]\\w+)\\s+(\\$\\w+)\\s*=\\s*null",
+      "message": "Parametro con type-hint de clase y default null implicitamente nullable: deprecated en PHP 8.4, debe ser explicito",
+      "fix": "?Tipo $param = null (ej: IRouter $r = null -> ?IRouter $r = null)",
+      "auto_fixable": true,
+      "playbook": "OCREND-CORE"
+    },
+    {
+      "id": "twig-legacy-class",
+      "severity": "fatal",
+      "regex": "\\\\?Twig_(Environment|Loader_Filesystem|Extension|Function|Extension_Debug|SimpleFunction)",
+      "message": "Clases Twig_* eliminadas en Twig 3",
+      "fix": "Namespaces: \\Twig\\Environment, \\Twig\\Loader\\FilesystemLoader, \\Twig\\Extension\\AbstractExtension, \\Twig\\TwigFunction, \\Twig\\Extension\\DebugExtension",
+      "auto_fixable": false,
+      "playbook": "OCREND-CORE"
+    },
+    {
+      "id": "symfony-debug-ns",
+      "severity": "fatal",
+      "regex": "Symfony\\\\Component\\\\Debug\\\\",
+      "message": "Symfony\\Component\\Debug\\* eliminado en Symfony 4.4",
+      "fix": "Symfony\\Component\\ErrorHandler\\* (ErrorHandler, Debug). ExceptionHandler::register() se elimina.",
+      "auto_fixable": false,
+      "playbook": "OCREND-CORE"
+    },
+    {
+      "id": "silex-application",
+      "severity": "fatal",
+      "regex": "Silex\\\\Application|new\\s+Application\\s*\\(",
+      "message": "Silex abandonado (2019), no existe en Symfony 6.4",
+      "fix": "Drop-in api/MicroApp.php sobre Symfony\\HttpFoundation",
+      "auto_fixable": false,
+      "playbook": "API-SILEX"
+    },
+    {
+      "id": "redirectresponse-create",
+      "severity": "fatal",
+      "regex": "RedirectResponse::create\\s*\\(",
+      "message": "RedirectResponse::create() eliminado en Symfony 5.1",
+      "fix": "(new RedirectResponse($url))->send()",
+      "auto_fixable": true,
+      "playbook": "OCREND-CORE"
+    },
+    {
+      "id": "final-private-method",
+      "severity": "warning",
+      "regex": "final\\s+private\\s+function",
+      "message": "final private function: warning fatal con ErrorHandler en PHP 8",
+      "fix": "private function (quitar final)",
+      "auto_fixable": true,
+      "playbook": "OCREND-CORE"
+    },
+    {
+      "id": "func-num-args",
+      "severity": "warning",
+      "regex": "func_(num_args|get_arg)\\s*\\(",
+      "message": "func_num_args/func_get_arg fragiles; preferir variadic",
+      "fix": "function X(mixed ...$args) + foreach",
+      "auto_fixable": false,
+      "playbook": "OCREND-CORE"
+    },
+    {
+      "id": "strtotime-nullable",
+      "severity": "fatal",
+      "regex": "(?<!\\(string\\)\\()strtotime\\s*\\(\\s*\\$[a-zA-Z_]\\w*(?:\\[[^\\]]*\\])*",
+      "message": "strtotime() recibe null -> TypeError en PHP 8.1+ (strict)",
+      "fix": "strtotime((string)($var ?? '')) o helper _fdate()",
+      "auto_fixable": true,
+      "playbook": "MODEL / PDF-TEMPLATE"
+    },
+    {
+      "id": "substr-nullable",
+      "severity": "fatal",
+      "regex": "(?<!\\(string\\)\\()substr\\s*\\(\\s*\\$[a-zA-Z_]\\w*(?:\\[[^\\]]*\\])*\\s*,",
+      "message": "substr() recibe null -> TypeError en PHP 8.1+",
+      "fix": "substr((string)($var ?? ''), ...)",
+      "auto_fixable": true,
+      "playbook": "MODEL / PDF-TEMPLATE"
+    },
+    {
+      "id": "str-pad-nullable",
+      "severity": "fatal",
+      "regex": "(?<!\\(string\\)\\()str_pad\\s*\\(\\s*\\$[a-zA-Z_]\\w*(?:\\[[^\\]]*\\])*\\s*,",
+      "message": "str_pad() recibe null -> TypeError en PHP 8.1+",
+      "fix": "str_pad((string)($var ?? ''), ...)",
+      "auto_fixable": true,
+      "playbook": "MODEL / PDF-TEMPLATE"
+    },
+    {
+      "id": "numeric-offset-on-scalar",
+      "severity": "warning",
+      "regex": "\\$[a-zA-Z_]\\w*\\[0\\]\\s*===?\\s*['\"]",
+      "message": "Posible acceso $var[0] sobre int/float -> Warning 'Trying to access array offset on value of type int/float' en PHP 8 (ver DefaultValueBinder.php:82)",
+      "fix": "Anteponer guard is_string($var) && ... antes del acceso por offset",
+      "auto_fixable": false,
+      "playbook": "PHPEXCEL-PATCH (lib)"
+    },
+    {
+      "id": "explode-asociado-no-guard",
+      "severity": "info",
+      "regex": "explode\\s*\\(\\s*[\"']-[\"']\\s*,\\s*\\$\\w+(?:\\[[^\\]]*\\])*\\[['\"]AsociadoCertificadoID['\"]\\]",
+      "message": "explode sobre AsociadoCertificadoID: si es '' devuelve [''] -> $cat[1] undefined -> ErrorException PHP 8",
+      "fix": "Envolver acceso $cat[1] en if (count($cat) > 1) { ... }",
+      "auto_fixable": false,
+      "playbook": "Patrones manuales 12"
+    },
+    {
+      "id": "json-decode-curl-offset",
+      "severity": "info",
+      "regex": "json_decode\\s*\\([^)]*\\)\\s*;",
+      "message": "json_decode de respuesta curl: validar is_array antes de acceder offsets (curl puede devolver HTML/binario)",
+      "fix": "if (!is_array($r)) { $r = [...]; } o is_array($r) && isset($r['k']) ? ... : ''",
+      "auto_fixable": false,
+      "playbook": "MODEL / PDF-TEMPLATE"
+    },
+    {
+      "id": "mpdf-output-no-F",
+      "severity": "info",
+      "regex": "->Output\\s*\\(\\s*['\"][^'\"]+\\.pdf['\"]\\s*\\)",
+      "message": "$mpdf->Output('x.pdf') SIN 'F' envia PDF binario al caller en vez de guardar",
+      "fix": "$mpdf->Output($path, 'F'); + responder JSON",
+      "auto_fixable": false,
+      "playbook": "PDF-TEMPLATE"
+    },
+    {
+      "id": "dynamic-property",
+      "severity": "warning",
+      "regex": "class\\s+\\w+",
+      "message": "Clases que asignan propiedades dinamicas: Deprecated en PHP 8.2 (fatal 9.0)",
+      "fix": "#[AllowDynamicProperties] sobre la clase, o declarar las props",
+      "auto_fixable": false,
+      "playbook": "OCREND-CORE",
+      "note": "Match amplio; usar solo como recordatorio, validar manualmente"
+    },
+    {
+      "id": "display-errors-on-endpoint",
+      "severity": "warning",
+      "regex": "ini_set\\s*\\(\\s*['\"]display_errors['\"]\\s*,\\s*(1|['\"]1['\"]|true)\\s*\\)",
+      "message": "display_errors=1 en endpoint JSON/PDF pollute la respuesta con warnings -> rompe JSON.parse del front",
+      "fix": "ini_set('display_errors', '0') + error_reporting(E_ALL & ~E_NOTICE & ~E_DEPRECATED)",
+      "auto_fixable": true,
+      "playbook": "PDF-TEMPLATE / ERROR-HANDLING"
+    }
+  ],
+  "security_rules": [
+    {
+      "id": "sql-injection-interp",
+      "severity": "high",
+      "regex": "(SELECT|INSERT|UPDATE|DELETE)[^;]*['\"][^'\"]*\\$\\w+",
+      "message": "Posible SQL injection: variable interpolada en query",
+      "fix": "Prepared statements / bind params del wrapper PDO de Ocrend",
+      "category": "security"
+    },
+    {
+      "id": "echo-unescaped-input",
+      "severity": "medium",
+      "regex": "echo\\s+\\$_(GET|POST|REQUEST|COOKIE)\\b",
+      "message": "Posible XSS: echo directo de input sin escapar",
+      "fix": "htmlspecialchars($x, ENT_QUOTES, 'UTF-8')",
+      "category": "security"
+    },
+    {
+      "id": "weak-hash",
+      "severity": "medium",
+      "regex": "\\b(md5|sha1)\\s*\\(",
+      "message": "Hash debil (md5/sha1) — inseguro para passwords",
+      "fix": "password_hash() / password_verify()",
+      "category": "security"
+    },
+    {
+      "id": "eval-usage",
+      "severity": "high",
+      "regex": "(?<![\\w>])eval\\s*\\(",
+      "message": "eval() — riesgo de ejecucion arbitraria",
+      "fix": "Evitar; reescribir logica",
+      "category": "security"
+    },
+    {
+      "id": "unserialize-input",
+      "severity": "high",
+      "regex": "unserialize\\s*\\(\\s*\\$_(GET|POST|REQUEST|COOKIE)",
+      "message": "unserialize de input — object injection",
+      "fix": "json_decode o unserialize con allowed_classes=false",
+      "category": "security"
+    }
+  ]
+}
