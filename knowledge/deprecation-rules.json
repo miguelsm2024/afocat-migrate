@@ -62,6 +62,16 @@
       "playbook": "CONTROLLER / MODEL"
     },
     {
+      "id": "bareword-constant-array-value",
+      "severity": "fatal",
+      "regex": "=>\\s*(stretch|true|false|null)\\b(?![\\w'\"])|=>\\s*[a-z][a-z_]{3,}\\s*[,)\\]]",
+      "message": "Posible bareword (constante indefinida) como valor de array: era warning+string en PHP 7, en PHP 8 es Error fatal. Ej: ['setAutoTopMargin' => stretch]",
+      "fix": "Encomillar el valor: => 'stretch'. (true/false/null SI son palabras clave validas; el regex marca barewords minusculos sospechosos)",
+      "auto_fixable": false,
+      "playbook": "PDF-TEMPLATE",
+      "note": "Match heuristico; validar. El caso confirmado: 'stretch' en opciones mPDF (setAutoTopMargin/setAutoBottomMargin)"
+    },
+    {
       "id": "non-nullable-default-null",
       "severity": "fatal",
       "regex": "function\\s+\\w+\\s*\\([^)]*\\b(?<!\\?)(?<!\\?\\\\)([A-Z]\\w+)\\s+(\\$\\w+)\\s*=\\s*null",
