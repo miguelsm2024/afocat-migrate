@@ -279,6 +279,18 @@
       "fix": "Usar rem/em para fuentes.",
       "auto_fixable": false,
       "playbook": "CSS-CLEANUP"
+    },
+    {
+      "id": "js-hardcoded-url",
+      "applies_to": ["js"],
+      "regex": "['\"]https?://[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/",
+      "severity": "info",
+      "level": "modernize",
+      "category": "legacy",
+      "message": "URL absoluta hardcodeada. Si referencia al MISMO proyecto, rompe en otros entornos.",
+      "fix": "Si es interna: ruta relativa (resuelve contra <base href>) o window.SITE_URL. Si es externa real (SUNAT/pasarela): dejar.",
+      "auto_fixable": false,
+      "playbook": "DOMAIN-REFERENCES"
     }
   ]
 }

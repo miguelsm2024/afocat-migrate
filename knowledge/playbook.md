@@ -33,6 +33,8 @@ Antes de cerrar cada tarea de migración:
 | `views/**/*.{html,htm,twig,phtml}` | Estructura HTML / Twig | `[HTML-STRUCTURE]` |
 | `**/*.{css,scss}` (no `.min.css`) | Estilos | `[CSS-CLEANUP]` |
 | Re-maquetado de pantalla (nivel redesign) | Layout / UX | `[FRONTEND-REDESIGN]` |
+| `"https://<dominio>/<base>/..."` interno en PHP/JS/Twig | Referencia interna hardcodeada | `[DOMAIN-REFERENCES]` |
+| `var` / `==` en JS propio (`views/app/js/`) | Modernización segura | `[JS-SAFE-MODERNIZE]` |
 
 > **Frontend = nivel en runtime.** Los procedimientos `[JS-MODERNIZE]`/`[HTML-STRUCTURE]`/`[CSS-CLEANUP]`/`[FRONTEND-REDESIGN]` se aplican según el **nivel** que el usuario elige en `/frontend-upgrade` (modernize ⊂ restructure ⊂ redesign). El skill SIEMPRE pregunta el nivel; nunca se asume.
 
@@ -656,6 +658,67 @@ Invoke-WebRequest -Uri "http://localhost:8080/sys_Afocat/logout/" -MaximumRedire
 - Layout `float`/tablas-de-layout → flexbox/grid; responsive/breakpoints.
 - **EXIGE spec de diseño por pantalla**: layout objetivo, breakpoints, referencia visual. El agente `frontend-migrator` **rechaza redesign sin spec**.
 - Siempre mostrar antes/después. Nunca re-maquetar a ciegas. No cambiar copy ni lógica.
+
+---
+
+## 14c. Procedimientos transversales reutilizables (acción base)
+
+> Secuencia validada en erp__Fasmot (2026-06-22). Reutilizable en cualquier proyecto Ocrend.
+> Ver [[erp-fasmot-validation]]. Orden recomendado tras backend: DOMAIN-REFERENCES → JS-SAFE-MODERNIZE.
+
+### `[DOMAIN-REFERENCES]` — dominio prod hardcodeado → base por entorno
+**Síntoma:** strings tipo `"https://<dominio-prod>/<base>/..."` repetidos en models/JS/Twig para referenciar archivos **del mismo proyecto** (curl self-calls, links, assets). Rompe en local y en cualquier entorno ≠ prod.
+
+**Fuente de verdad:** `Ocrend.ini.yml` → `site.url` (por entorno; local `http://localhost:.../<proj>/`, prod `https://<dominio>/<base>/`).
+
+**PHP (models):**
+1. En `Ocrend/Kernel/Config/Start.php`, tras `$config = (new Config)->readConfig();`:
+   ```php
+   if (!defined('SITE_URL')) {
+       define('SITE_URL', rtrim($config['site']['url'] ?? '', '/') . '/');
+   }
+   ```
+2. Reemplazo (idempotente, ambas comillas):
+   ```powershell
+   $c = [regex]::Replace($c, '"https?://(www\.)?<DOMINIO>/<BASE>/', 'SITE_URL."')
+   $c = [regex]::Replace($c, "'https?://(www\.)?<DOMINIO>/<BASE>/", "SITE_URL.'")
+   ```
+   Resultado: `$ruta = SITE_URL."mPDF/x.php";` (concatenación válida). `php -l` después.
+
+**Twig:** brand/links internos → `href="."` (resuelve contra `{{ base_assets()|raw }}` = `<base href>` ya presente). Tras editar, **borrar `app/templates/.cache/`** (twig compilado viejo lleva el dominio; regenera).
+
+**JS:** referencias internas → **ruta relativa** (quitar `https://<dominio>/<base>/`); resuelven contra `<base href>` (mismo origen). `node --check` después.
+
+**NO tocar:** dominio como **texto de display** (pie de PDF, contacto `www.<dominio>`, emails). Es contenido, no referencia. Ni URLs **externas** reales (SUNAT, pasarelas).
+
+**Post:** confirmar que el `Ocrend.ini.yml` de **prod** tenga `site.url` correcto (única fuente de la base ahora). Verificar en browser: home, self-curl (PDF/XLSX), assets.
+
+### `[JS-SAFE-MODERNIZE]` — modernización JS sin romper (subconjunto seguro)
+Los JS legacy Ocrend usan **vars globales (sourceType:script) compartidas entre archivos** y **`==` con coerción intencional** (valores DOM/JSON string vs literal numérico). **No** se pueden barrer a ciegas. Sólo automatizar lo provablemente seguro:
+
+1. **`var` → `let/const` function-local** vía ESLint (scope-aware; deja globales):
+   ```
+   npm i -D eslint   # crear eslint.config.js: no-var + prefer-const, files views/app/js/**
+   npx eslint "views/app/js" --fix
+   ```
+   ESLint NO convierte vars globales top-level (rompería cross-file) — correcto.
+2. **`==` → `===` sólo cuando un lado es provablemente primitivo:**
+   - `typeof X == 'lit'` (typeof siempre string).
+   - `.val()/.text()/.html()/.attr(...) == 'lit'` (getter jQuery retorna string).
+   - `.length == <num>` (length es number).
+   ```powershell
+   $c = [regex]::Replace($c, "(typeof\b[^=!<>\r\n]*?)==(\s*['""])", '$1===$2')
+   $c = [regex]::Replace($c, "(\.(val|text|html|attr)\([^)]*\)\s*)==(\s*['""])", '$1===$3')
+   $c = [regex]::Replace($c, "(\.length\s*)==(\s*\d)", '$1===$2')
+   # idem !=  ->  !==
+   ```
+   `node --check` después.
+
+**Lo NO automatizable (requiere app corriendo + criterio):**
+- `data.x == "1"`, `cantidad == 1`, `dato == arr[i]['id']` → coerción string/número; `===` puede dar false y romper.
+- `vector != false` → truthiness; `!== false` cambia semántica.
+- `var` globales → requieren modularizar (= nivel **restructure**, no modernize).
+Para estos: `npx eslint <modulo> --rule "{ 'eqeqeq':'warn' }"` (marca, no fixea) y revisar módulo por módulo con el browser abierto.
 
 ---
 

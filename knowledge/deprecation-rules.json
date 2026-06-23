@@ -205,6 +205,16 @@
       "fix": "ini_set('display_errors', '0') + error_reporting(E_ALL & ~E_NOTICE & ~E_DEPRECATED)",
       "auto_fixable": true,
       "playbook": "PDF-TEMPLATE / ERROR-HANDLING"
+    },
+    {
+      "id": "hardcoded-absolute-url",
+      "severity": "info",
+      "regex": "['\"]https?://[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/",
+      "message": "URL absoluta hardcodeada en string. Si referencia archivos del MISMO proyecto (curl self-call, ruta), rompe en local/otros entornos",
+      "fix": "define('SITE_URL', site.url) en Start.php y usar SITE_URL.\"resto/x.php\". Si es URL externa real (SUNAT/pasarela) o texto de display (pie PDF), dejar",
+      "auto_fixable": false,
+      "playbook": "DOMAIN-REFERENCES",
+      "note": "Match amplio (dispara en URLs externas y display); info/recordatorio, validar caso a caso"
     }
   ],
   "security_rules": [
