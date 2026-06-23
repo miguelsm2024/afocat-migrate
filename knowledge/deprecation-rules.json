@@ -62,6 +62,16 @@
       "playbook": "CONTROLLER / MODEL"
     },
     {
+      "id": "foreach-sin-guard",
+      "severity": "warning",
+      "regex": "foreach\\s*\\(\\s*\\$[a-zA-Z_]\\w*(\\[[^\\]]*\\])*\\s+as",
+      "message": "foreach sobre variable sin validar: si es null/false (ej. select() sin filas) -> Warning -> 500 con debug:true",
+      "fix": "foreach ((is_array($x) ? $x : []) as ...). NO (array)$x (=[false]). NO envolver si es foreach(funcion() as ...) o as &$ref",
+      "auto_fixable": false,
+      "playbook": "MODEL",
+      "note": "Match amplio; los foreach sobre llamadas/referencias requieren revisión manual"
+    },
+    {
       "id": "bareword-constant-array-value",
       "severity": "fatal",
       "regex": "=>\\s*(stretch|true|false|null)\\b(?![\\w'\"])|=>\\s*[a-z][a-z_]{3,}\\s*[,)\\]]",

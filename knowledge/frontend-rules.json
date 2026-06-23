@@ -281,6 +281,30 @@
       "playbook": "CSS-CLEANUP"
     },
     {
+      "id": "js-loop-length-sin-guard",
+      "applies_to": ["js"],
+      "regex": "<\\s*[A-Za-z_$][\\w$]*(\\.[A-Za-z_$][\\w$]*|\\[[^\\]]*\\])*\\.length\\b",
+      "severity": "warning",
+      "level": "modernize",
+      "category": "legacy",
+      "message": "Comparación con .length sin validar: si la variable es undefined/null -> 'Cannot read properties of undefined'.",
+      "fix": "i < (x || []).length  (vale para array y string; null/undefined -> 0).",
+      "auto_fixable": false,
+      "playbook": "JS-SAFE-MODERNIZE"
+    },
+    {
+      "id": "js-foreach-sin-guard",
+      "applies_to": ["js"],
+      "regex": "[A-Za-z_$][\\w$]*(\\.[A-Za-z_$][\\w$]*)*\\.forEach\\s*\\(",
+      "severity": "info",
+      "level": "modernize",
+      "category": "legacy",
+      "message": ".forEach sobre variable sin validar -> error si es undefined/null.",
+      "fix": "(x || []).forEach(...)",
+      "auto_fixable": false,
+      "playbook": "JS-SAFE-MODERNIZE"
+    },
+    {
       "id": "js-hardcoded-url",
       "applies_to": ["js"],
       "regex": "['\"]https?://[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/",
