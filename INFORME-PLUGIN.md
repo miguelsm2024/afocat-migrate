@@ -114,6 +114,7 @@ findings; excluyendo `.cache/` + dups bajó a **180 reales**. Override con `incl
 | `migrate-file` | Migra UN archivo por el procedimiento del playbook (3-4 tool calls) | Granular, uno por uno |
 | `migrate-verify` | Verificación end-to-end (php -l, scan residual, smoke web, error_log) | Antes de subir a prod |
 | `frontend-upgrade` (v1.1) | **Corrige** frontend (JS/CSS/HTML/Twig). **Paso 0: pregunta el nivel** modernize/restructure/redesign. Escanea, delega a `frontend-migrator`, verifica | Para elevar el frontend |
+| `runtime-audit` (v1.2) | **Plan base post-migración**: diagnostica por evidencia (error.log+curl+integridad) y arregla imprimibles (PDF/XLSX/Word), descargas, errores de consola, vistas 500, reportes que "no terminan". Auto-actualiza el playbook | App ya corre pero fallan funciones reales |
 | `ocrend-check` | Compatibilidad del CORE (Twig/Symfony/Silex/errores). Bloquea todo si falla | PRIMERO, antes de models/controllers |
 | `security-audit` | Auditoría defensiva (SQLi, XSS, hashes, secretos, uploads, API sin auth) | Transversal |
 | `session-audit` | Sesiones Ocrend bajo PHP 8.2 (cookies, gc_maxlifetime, regenerate_id) | Transversal |

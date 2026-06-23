@@ -12,6 +12,7 @@ Plugin de Claude Code para migrar proyectos **Ocrend 2** a **PHP 8.2** de forma 
 | Skill | `migrate-verify` | Verificacion end-to-end (php -l, scan, smoke, error_log) |
 | Skill | `frontend-upgrade` | **Corrige** frontend (JS/CSS/HTML/Twig). Pregunta el nivel: modernize/restructure/redesign |
 | Skill | `frontend-verify` | Verifica (read-only) consistencia frontend con el backend migrado |
+| Skill | `runtime-audit` | **Plan base post-migración**: imprimibles/reportes/descargas que fallan, errores de consola, vistas 500. Diagnóstico por evidencia + fixes §16 |
 | Skill | `security-audit` | Auditoria defensiva (SQLi, XSS, hashes, secretos) |
 | Skill | `session-audit` | Sesiones Ocrend bajo PHP 8.2 |
 | Skill | `ocrend-check` | Compatibilidad del core (Twig/Symfony/Silex/errores) |
@@ -71,6 +72,7 @@ O apuntar la config de plugins de Claude Code a esta carpeta.
   -> ftp_deploy (MCP)         # a prod
 /frontend-upgrade             # frontend: PREGUNTA nivel (modernize/restructure/redesign) y corrige
   -> /frontend-verify         # verificar consistencia post-upgrade
+/runtime-audit                # post-migración: imprimibles/reportes/descargas/consola/500
 security-audit / session-audit  # transversales
 ```
 

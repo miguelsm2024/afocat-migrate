@@ -1,6 +1,6 @@
 {
   "name": "afocat-migrate",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Toolkit de upgrade integral para proyectos Ocrend: migracion backend a PHP 8.2 + analisis y correccion de frontend (JS/CSS/HTML/Twig) por niveles (modernize/restructure/redesign). Skills, subagentes, hooks y MCP server: lint, deprecation_scan, frontend_scan, auditoria de seguridad y sesiones, compatibilidad Ocrend.",
   "author": {
     "name": "miguelsm2024",
