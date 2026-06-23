@@ -766,7 +766,7 @@ RUN chown -R www-data:www-data /var/www/html/app/templates/.cache \
                                /var/www/html/mPDF \
     && find /var/www/html/mPDF -type d -name tmp -exec chmod -R 775 {} +
 ```
-`php.ini` (montar o COPY): `extension=*` ya quedan compiladas con `docker-php-ext-install` (no hace falta descomentar). Subir `upload_max_filesize`/`post_max_size`/`memory_limit` si los reportes son grandes.
+`php.ini` (montar o COPY): `extension=*` ya quedan compiladas con `docker-php-ext-install` (no hace falta descomentar). Subir `upload_max_filesize`/`post_max_size`/`memory_limit`/`max_execution_time` si los reportes son grandes. **`composer install`**: usar los `composer.lock` (`--no-dev`); pero ver gotcha de vendor pineado a dev-master abajo — esos van commiteados, no por composer.
 
 ### Config por entorno (dominio)
 - `Ocrend.ini.yml` → `site.url: https://<dominio>/` (o `/erp/` según monten). **`SITE_URL` (ver [DOMAIN-REFERENCES]) lee de acá** → mismo código sirve local y prod. Mejor aún: leer `site.url` de una **env var** del contenedor para no hornear el dominio en la imagen.
@@ -778,14 +778,39 @@ Los models hacen `curl` a `SITE_URL."mPDF/x.php"` (el server se llama a sí mism
 - O permitir resolución del dominio dentro del contenedor (`extra_hosts`).
 - En el curl, `CURLOPT_SSL_VERIFYPEER` ya está en `false` en estos models (ojo: aceptable solo para self-call interno).
 
+### Nginx (alternativa a Apache) — traducir el `.htaccess`
+Ocrend trae `.htaccess` (Apache): front-controller `RewriteRule ^(.*)$ index.php?routing=$1` + bloqueo de archivos sensibles + CORS. En Nginx (php-fpm) equivale a:
+```nginx
+location / { try_files $uri $uri/ /index.php?routing=$uri&$args; }
+location ~ \.php$ {
+    fastcgi_pass app:9000;
+    fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+    fastcgi_param SERVER_NAME $host;   # IMPRESCINDIBLE (ver gotcha base_assets)
+    include fastcgi_params;
+    fastcgi_read_timeout 300;          # reportes grandes
+}
+location ~* \.(ini|yml|sql|log|lock|json|twig|bak|sh)$ { deny all; return 404; }
+location ~ /\.(?!well-known) { deny all; return 404; }   # .git/.env/.htaccess
+```
+Stack típico: `web` (nginx) sirve estáticos `:ro` + `app` (php:8.2-fpm) + `db` (mariadb/mysql).
+
+### Gotchas validados en build real (erp__Fasmot, Docker+Nginx)
+- **`base_assets()` rompe bajo Nginx/fastcgi — `Uninitialized string offset` → 500:** `Ocrend/Kernel/Helpers/Functions.php` hacía `$server = SERVER_NAME; $www = $server[0].$server[1].$server[2];` para detectar subdominio `www`. Bajo nginx, si `SERVER_NAME` no se pasa por fastcgi (o es corto/vacío), los offsets `[1]/[2]` disparan **Warning = 500 con `framework.debug:true`** — tumba el login en el primer request. Fix doble: (1) core → `$www = substr((string)$server, 0, 3);`; (2) nginx → `fastcgi_param SERVER_NAME $host;`. Es bug PHP 8 latente que SOLO se manifiesta fuera de Apache/mod_php.
+- **`composer install` falla con vendor pineado a `dev-master`:** si un `composer.lock` tiene un paquete como `dev-master` que no satisface el constraint del `composer.json` (típico en libs viejas tipo `phpoffice/phpword v0.18.*` vs lock `dev-master`), `composer install` aborta con exit 4. No "arreglar" el composer.json a ciegas. Solución: **commitear ESE `vendor/` puntual** (suele ser pequeño) y sacarlo del `composer install` del Dockerfile (el `COPY . ` lo trae). Reservar `composer install` para los vendor grandes y estándar (Ocrend, mPDF). Validado: `mPDF/word/vendor` (~2.8M) commiteado; Ocrend/vendor (70M) y mPDF/vendor (96M) vía composer.
+
+### .gitignore para repo Ocrend (qué excluir / qué commitear)
+- **Excluir:** `Ocrend/Kernel/Config/Ocrend.ini.yml` (secretos), `.env`, vendor grandes (`Ocrend/vendor`, `mPDF/vendor`), `node_modules`, `app/templates/.cache`, outputs (`mPDF/REPORTES`, `mPDF/word/FILES`, `Examples/REPORTES`), `*.log`/`error_log`, `**/trash`, `**/_____Papelera`.
+- **Commitear:** `composer.json`+`composer.lock` (para el install), `mPDF/PHPExcel-1.8/` entero (no es vendor — tiene los parches curly-brace), vendor pineados a dev-master (`mPDF/word/vendor`), vendor anidados pequeños de sub-scripts (barcode/qr). Dar `Ocrend.ini.example.yml` (sin secretos) + `.env.docker.example`. (erp__Fasmot: 520M → ~45M en git.)
+
 ### Checklist de deploy (cualquier VPS/Docker nuevo)
-1. Extensiones: `gd` + `zip` (las que más rompen) + mysqli/pdo_mysql/bcmath/soap.
-2. `site.url` = dominio prod (via env var idealmente).
-3. Permisos escritura: `app/templates/.cache/`, `mPDF/` (genera PDF/XLSX en subcarpetas), `tmp/`.
-4. `mod_rewrite` activo + `.htaccess`/routing Ocrend.
-5. Self-curl resolvable internamente (ver caveat).
-6. `framework.debug: false` en prod (ver §16).
-7. Verificar: login, un PDF (imagen GD), un XLSX (zip), un self-curl.
+1. Extensiones: `gd` + `zip` (las que más rompen) + mysqli/pdo_mysql/bcmath/soap/exif.
+2. `site.url` = dominio prod (vía env / volume del `Ocrend.ini.yml`).
+3. Permisos escritura: `app/templates/.cache/`, `mPDF/REPORTES`, `mPDF/PHPExcel-1.8/Examples/REPORTES`, `mPDF/word/FILES`.
+4. Routing: Apache `mod_rewrite`+`.htaccess`, o Nginx `try_files` (arriba). **`SERVER_NAME` debe llegar a PHP** (gotcha base_assets).
+5. `composer install` por lock; commitear vendor pineados a dev-master.
+6. Self-curl resolvable internamente (ver caveat).
+7. `framework.debug: false` en prod (ver §16).
+8. Verificar: login (200), un PDF (imagen GD), un XLSX (zip), un Word, un self-curl.
 
 ---
 
