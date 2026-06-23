@@ -720,6 +720,50 @@ Los JS legacy Ocrend usan **vars globales (sourceType:script) compartidas entre 
 - `var` globales → requieren modularizar (= nivel **restructure**, no modernize).
 Para estos: `npx eslint <modulo> --rule "{ 'eqeqeq':'warn' }"` (marca, no fixea) y revisar módulo por módulo con el browser abierto.
 
+## 14d. `[DEPLOY-DOCKER]` — VPS dockerizado con dominio (acción base)
+
+> Los fixes de `php.ini` (zip, gd, etc.) **NO viajan con el código** — son del entorno. En un VPS/Docker fresco los errores (XLSX 403, imágenes mPDF vacías) **reaparecen** salvo que la imagen los traiga. Docker es el lugar correcto: se define una vez, reproducible.
+
+### Extensiones PHP requeridas (Ocrend + PHPExcel + mPDF)
+Detectar con: `grep -rlE 'curl_init|ZipArchive|imagecreate|Mpdf|mysqli|new PDO|mb_|SoapClient|bcadd|finfo'`.
+Set típico: **curl, zip, gd, mysqli, pdo_mysql, mbstring, soap, bcmath, fileinfo, exif, openssl** (PHP ≥ 8.2). `mbstring/curl/openssl/fileinfo` ya vienen en la imagen oficial; el resto se instala.
+
+### Dockerfile base (php:8.2-apache)
+```dockerfile
+FROM php:8.2-apache
+RUN apt-get update && apt-get install -y \
+      libzip-dev libpng-dev libjpeg-dev libfreetype6-dev libxml2-dev \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install -j$(nproc) gd zip mysqli pdo_mysql bcmath soap exif \
+    && a2enmod rewrite \
+    && rm -rf /var/lib/apt/lists/*
+# Ocrend usa rutas tipo /erp/ -> servir el proyecto bajo esa base o ajustar site.url
+COPY . /var/www/html/
+RUN chown -R www-data:www-data /var/www/html/app/templates/.cache \
+                               /var/www/html/mPDF \
+    && find /var/www/html/mPDF -type d -name tmp -exec chmod -R 775 {} +
+```
+`php.ini` (montar o COPY): `extension=*` ya quedan compiladas con `docker-php-ext-install` (no hace falta descomentar). Subir `upload_max_filesize`/`post_max_size`/`memory_limit` si los reportes son grandes.
+
+### Config por entorno (dominio)
+- `Ocrend.ini.yml` → `site.url: https://<dominio>/` (o `/erp/` según monten). **`SITE_URL` (ver [DOMAIN-REFERENCES]) lee de acá** → mismo código sirve local y prod. Mejor aún: leer `site.url` de una **env var** del contenedor para no hornear el dominio en la imagen.
+- Cert SSL: terminar TLS en el reverse-proxy (nginx/traefik/Caddy) delante del contenedor Apache.
+
+### Caveat self-curl en Docker (importante)
+Los models hacen `curl` a `SITE_URL."mPDF/x.php"` (el server se llama a sí mismo). Desde **dentro del contenedor**, pegarle al **dominio público** puede fallar (DNS/hairpin-NAT/SSL interno). Opciones:
+- Definir una env var `INTERNAL_URL=http://127.0.0.1/` (o el nombre del servicio en compose) y usarla SOLO para los self-curl, dejando `SITE_URL` (dominio) para links/assets del usuario.
+- O permitir resolución del dominio dentro del contenedor (`extra_hosts`).
+- En el curl, `CURLOPT_SSL_VERIFYPEER` ya está en `false` en estos models (ojo: aceptable solo para self-call interno).
+
+### Checklist de deploy (cualquier VPS/Docker nuevo)
+1. Extensiones: `gd` + `zip` (las que más rompen) + mysqli/pdo_mysql/bcmath/soap.
+2. `site.url` = dominio prod (via env var idealmente).
+3. Permisos escritura: `app/templates/.cache/`, `mPDF/` (genera PDF/XLSX en subcarpetas), `tmp/`.
+4. `mod_rewrite` activo + `.htaccess`/routing Ocrend.
+5. Self-curl resolvable internamente (ver caveat).
+6. `framework.debug: false` en prod (ver §16).
+7. Verificar: login, un PDF (imagen GD), un XLSX (zip), un self-curl.
+
 ---
 
 ## 15. Historial de migraciones aplicadas
