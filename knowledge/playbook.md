@@ -35,6 +35,7 @@ Antes de cerrar cada tarea de migración:
 | Re-maquetado de pantalla (nivel redesign) | Layout / UX | `[FRONTEND-REDESIGN]` |
 | `"https://<dominio>/<base>/..."` interno en PHP/JS/Twig | Referencia interna hardcodeada | `[DOMAIN-REFERENCES]` |
 | `var` / `==` en JS propio (`views/app/js/`) | Modernización segura | `[JS-SAFE-MODERNIZE]` |
+| Layout con N iframes `page_iframe_*` + botones `btn_i_*` | Navegación multi-vista | `[IFRAME-NAV]` |
 
 > **Frontend = nivel en runtime.** Los procedimientos `[JS-MODERNIZE]`/`[HTML-STRUCTURE]`/`[CSS-CLEANUP]`/`[FRONTEND-REDESIGN]` se aplican según el **nivel** que el usuario elige en `/frontend-upgrade` (modernize ⊂ restructure ⊂ redesign). El skill SIEMPRE pregunta el nivel; nunca se asume.
 
@@ -692,6 +693,28 @@ Invoke-WebRequest -Uri "http://localhost:8080/sys_Afocat/logout/" -MaximumRedire
 **NO tocar:** dominio como **texto de display** (pie de PDF, contacto `www.<dominio>`, emails). Es contenido, no referencia. Ni URLs **externas** reales (SUNAT, pasarelas).
 
 **Post:** confirmar que el `Ocrend.ini.yml` de **prod** tenga `site.url` correcto (única fuente de la base ahora). Verificar en browser: home, self-curl (PDF/XLSX), assets.
+
+### `[IFRAME-NAV]` — navegación multi-vista por iframes (refactor data-driven)
+**Patrón Ocrend común:** el layout tiene N iframes pre-puestos (`display:none`, `src=""`, `class="iframe_class"`, `id="page_iframe_<m>"`); cada botón `#btn_i_<m>` muestra el suyo cargando `src="<m>/"` **solo la 1ª vez** (flag lazy), así cambiar de vista **no recarga** y conserva el estado del usuario. **Es un patrón válido, NO deuda:** el iframe aísla el scope JS/CSS de cada módulo — defensa natural contra las vars globales/`==` del legacy. No migrar a SPA/AJAX (expone colisiones, reescritura masiva).
+
+**Mejorable (bajo riesgo):** la versión típica repite ~5 bloques por módulo (var flag + onload + click + dblclick) → O(n) líneas, propenso a bugs copy-paste (ej. un botón usando el flag de otro módulo → uno no carga). Refactor data-driven:
+```js
+const MODULOS = ["movimientos","ventas", /* ... */];
+const cargado = {};                                  // reemplaza las N vars flag
+function mostrarModulo(m, forzar){
+  $(".cont_home").fadeOut(0); $(".iframe_class").hide();
+  const $f=$("#page_iframe_"+m); if(!$f.length) return; // guard módulo inexistente
+  if(forzar || !cargado[m]){ $f.height($("body").height()-20).attr("src", m+"/"); cargado[m]=true; }
+  $f.show();
+}
+MODULOS.forEach(function(m){
+  const el=document.getElementById("page_iframe_"+m);
+  if(el) el.onload=function(){ $("#cont_menu").unblock(); open_forcat_OUT(); }; // guard null
+  $("#btn_i_"+m).on("click",    function(){ mostrarModulo(m,false); });
+  $("#btn_i_"+m).on("dblclick", function(){ mostrarModulo(m,true);  });
+});
+```
+Gana: 1 array como fuente de verdad (agregar módulo = 1 string), elimina bugs de flag cruzado, guard null en onload (un id faltante ya no rompe TODO el menú). Mismo comportamiento (lazy + estado preservado + dblclick recarga). Sirve en varios layouts (`overall`, `overall_snt`): los guards ignoran módulos ausentes. Recordar cache-bust `?v=` en el `<script>` + borrar `.cache`. Validado en erp__Fasmot (`inicio/menu.js`, 22 módulos, 110→~55 líneas, bug estadisticas/libdiario corregido).
 
 ### `[JS-SAFE-MODERNIZE]` — modernización JS sin romper (subconjunto seguro)
 Los JS legacy Ocrend usan **vars globales (sourceType:script) compartidas entre archivos** y **`==` con coerción intencional** (valores DOM/JSON string vs literal numérico). **No** se pueden barrer a ciegas. Sólo automatizar lo provablemente seguro:
