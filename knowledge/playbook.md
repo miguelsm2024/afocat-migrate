@@ -689,6 +689,18 @@ Cargar este CSS **al final** de los `<link>` del `<head>` (gana especificidad). 
 
 **Post:** cache-bust `?v=` en `redesign.css/js`, borrar `app/templates/.cache/`, hard refresh. Verificar dashboard + navegación entre iframes con el tema. Es rediseño por capa → reversible (quitar el link/js vuelve al theme original).
 
+**Checklist de componentes a tematizar (Modern Admin/Bootstrap — orden en que suelen faltar, validado en erp__Fasmot):** el theme pinta fondos en MUCHOS sub-elementos, no solo el contenedor. Cubrir TODOS con variables:
+- **Sidebar `#cont_menu`**: no basta el contenedor; usar `#cont_menu *` (el theme pinta hijos `.main-menu-content/.navigation/ul/li`).
+- **Cards**: `.card` **y sus hijos** `.card-body/.card-content/.card-footer` (el theme los pinta blancos aparte).
+- **Modales**: `.modal-content/.modal-body/.modal-footer` (blancos) + `.modal-header.bg-info/.bg-primary` (celeste fijo → acento).
+- **Inputs/selects**: NO solo `.form-control` — cubrir `input[type=text/search/date/number/…]`, `select`+`option`, `textarea`, `input:not([type])`, `input-group-text`, y el `::-webkit-calendar-picker-indicator` (invert en dark). Hay cientos de inputs sin clase.
+- **Nav tabs/pills**: `.nav-link` del contenido (no solo navbar) + `.nav-link.active` + `.tab-content`.
+- **Contenedores de sección**: `section`/`#cont_*body`/`.content-body`/`.app-content` sin fondo propio.
+- **Customizer del theme**: `.customizer-toggle.bg-danger` (engranaje rojo) → acento; panel `.customizer` → surface.
+- **Loader `#cargando`**: `.move`/cortina con `background:#fff` → surface (flash blanco en dark).
+- **DataTables**: filas `.sorting_1/2/3` (gris `#fafafa`), striped, paginación, filter/length, scrollHead — ver `[DATATABLES-CONFIG]`.
+- **Inline fijos**: `html[data-theme="dark"] [style*="color:#000"]/[style*="background:#fff"] {…!important}` neutraliza estilos inline sin tocar el HTML (un `!important` externo gana a inline sin `!important`).
+
 ---
 
 ## 14c. Procedimientos transversales reutilizables (acción base)
