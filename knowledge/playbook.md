@@ -37,6 +37,7 @@ Antes de cerrar cada tarea de migración:
 | `var` / `==` en JS propio (`views/app/js/`) | Modernización segura | `[JS-SAFE-MODERNIZE]` |
 | Layout con N iframes `page_iframe_*` + botones `btn_i_*` | Navegación multi-vista | `[IFRAME-NAV]` |
 | Rediseño visual / dark mode sobre theme admin | Look & feel + UX | `[VIEW-REDESIGN]` |
+| Tablas DataTables.net (ancho/header/búsqueda/iframe) | Estandarizar tablas | `[DATATABLES-CONFIG]` |
 
 > **Frontend = nivel en runtime.** Los procedimientos `[JS-MODERNIZE]`/`[HTML-STRUCTURE]`/`[CSS-CLEANUP]`/`[FRONTEND-REDESIGN]` se aplican según el **nivel** que el usuario elige en `/frontend-upgrade` (modernize ⊂ restructure ⊂ redesign). El skill SIEMPRE pregunta el nivel; nunca se asume.
 
@@ -743,6 +744,23 @@ MODULOS.forEach(function(m){
 });
 ```
 Gana: 1 array como fuente de verdad (agregar módulo = 1 string), elimina bugs de flag cruzado, guard null en onload (un id faltante ya no rompe TODO el menú). Mismo comportamiento (lazy + estado preservado + dblclick recarga). Sirve en varios layouts (`overall`, `overall_snt`): los guards ignoran módulos ausentes. Recordar cache-bust `?v=` en el `<script>` + borrar `.cache`. Validado en erp__Fasmot (`inicio/menu.js`, 22 módulos, 110→~55 líneas, bug estadisticas/libdiario corregido).
+
+### `[DATATABLES-CONFIG]` — estandarizar tablas (DataTables.net) por capa compartida
+**Problema en proyectos Ocrend:** decenas/cientos de `.DataTable()` (erp__Fasmot: ~145 en 30 JS), todas client-side, con `autoWidth:true` sin `table-layout` → columnas saltan al redimensionar; `scrollX:true` sin `columns.adjust()` → header desalineado y **ancho 0 al mostrarse en un iframe oculto**; búsqueda por columna copiada a mano (sin debounce); **ninguna con guarda** → `Cannot reinitialise DataTable`.
+
+**Solución: capa compartida (NO reescribir cada init).** Dos archivos en el proyecto:
+- `views/app/js/tables-init.js` → `window.RDTables`: `init(sel,opts)` idempotente (`$.fn.dataTable.isDataTable`), `enhance(sel)` (mejora tablas ya inicializadas por el módulo), `adjustAll()` (solo tablas visibles). Defaults + `language` ES **inline** (offline, sin CDN). Debounce 300ms en búsqueda por columna. `adjustAll` en `resize` + `IntersectionObserver` + `window.load`; en `load` hace **auto-enhance** de todas las `table.dataTable` existentes (debounce + adjust) sin tocar sus inits.
+- `views/app/css/tables.css` → reglas de ancho + inputs + headers.
+
+**Decisión de ancho (2 modos, según pedido):**
+- *Proporcional estable:* `table-layout:fixed; width:100%` + celdas `ellipsis` + `autoWidth:false`.
+- *Ancho por contenido (una línea, tipo Excel — el usado en erp__Fasmot):* `table-layout:auto; width:auto; min-width:100%`, celdas `white-space:nowrap; overflow:visible`, `autoWidth:true`; si excede → scroll-x. **No combinar ambos.**
+
+**Headers con color dinámico:** `thead th { background: var(--rd-accent); color:#fff }` (cambia con dark/light de [[playbook]] §14b VIEW-REDESIGN). Cubrir también `.dataTables_scrollHead table thead th` (header clonado por scrollX).
+
+**Integración iframes ([IFRAME-NAV]):** DataTables calcula ancho **0** si se inicializa en iframe/tab oculto → al mostrarse queda roto. `adjustAll()` en resize/visible/load lo recalcula con el ancho real.
+
+**Inyección:** idempotente en TODOS los layouts (CSS tras `redesign.css` antes `</head>`, JS tras `redesign.js` antes `</body>`), cache-bust `?v=`, cuidando `</body>` duplicado legacy. Validado en erp__Fasmot (5 layouts). DataTables 1.10.8 (no actualizar; control de alcance). serverSide: las tablas mantienen su `ajax`; el debounce manda el filtro al endpoint.
 
 ### `[JS-SAFE-MODERNIZE]` — modernización JS sin romper (subconjunto seguro)
 Los JS legacy Ocrend usan **vars globales (sourceType:script) compartidas entre archivos** y **`==` con coerción intencional** (valores DOM/JSON string vs literal numérico). **No** se pueden barrer a ciegas. Sólo automatizar lo provablemente seguro:
