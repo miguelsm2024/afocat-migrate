@@ -327,6 +327,151 @@
       "fix": "Si es interna: ruta relativa (resuelve contra <base href>) o window.SITE_URL. Si es externa real (SUNAT/pasarela): dejar.",
       "auto_fixable": false,
       "playbook": "DOMAIN-REFERENCES"
+    },
+
+    {
+      "id": "a11y-icon-button-sin-nombre",
+      "applies_to": ["html", "twig"],
+      "regex": "<button(?![^>]*aria-label)(?![^>]*aria-labelledby)[^>]*>\\s*<(i|svg|span)\\b",
+      "severity": "warning",
+      "level": "modernize",
+      "category": "a11y",
+      "message": "Botón solo-ícono sin nombre accesible: el lector de pantalla no sabe qué hace.",
+      "fix": "Agregar aria-label=\"...\" al <button> y aria-hidden=\"true\" al ícono. (UI Skills: fixing-accessibility, baseline-ui)",
+      "auto_fixable": false,
+      "playbook": "HTML-STRUCTURE"
+    },
+    {
+      "id": "a11y-anchor-icon-sin-nombre",
+      "applies_to": ["html", "twig"],
+      "regex": "<a(?![^>]*aria-label)(?![^>]*aria-labelledby)[^>]*>\\s*<(i|svg)\\b[^>]*>\\s*</a>",
+      "severity": "info",
+      "level": "modernize",
+      "category": "a11y",
+      "message": "Enlace solo-ícono sin nombre accesible.",
+      "fix": "Agregar aria-label al <a> y aria-hidden=\"true\" al ícono. (UI Skills: fixing-accessibility)",
+      "auto_fixable": false,
+      "playbook": "HTML-STRUCTURE"
+    },
+    {
+      "id": "a11y-div-span-onclick",
+      "applies_to": ["html", "twig"],
+      "regex": "<(div|span)\\b(?![^>]*role=)[^>]*\\sonclick=",
+      "severity": "warning",
+      "level": "modernize",
+      "category": "a11y",
+      "message": "div/span con onclick usado como botón: no es accesible por teclado.",
+      "fix": "Usar <button>. Si no se puede, agregar role=\"button\" tabindex=\"0\" y handler de teclado (Enter/Espacio). (UI Skills: fixing-accessibility)",
+      "auto_fixable": false,
+      "playbook": "HTML-STRUCTURE"
+    },
+    {
+      "id": "a11y-positive-tabindex",
+      "applies_to": ["html", "twig"],
+      "regex": "tabindex\\s*=\\s*[\"']?[1-9]",
+      "severity": "warning",
+      "level": "modernize",
+      "category": "a11y",
+      "message": "tabindex positivo rompe el orden natural de tabulación.",
+      "fix": "Usar tabindex=\"0\" (focuseable en orden) o \"-1\" (foco programático). Nunca > 0. (UI Skills: fixing-accessibility)",
+      "auto_fixable": false,
+      "playbook": "HTML-STRUCTURE"
+    },
+    {
+      "id": "a11y-link-generico",
+      "applies_to": ["html", "twig"],
+      "regex": ">\\s*(click here|clic aqu[ií]|haga clic|aqu[ií]|leer m[aá]s|ver m[aá]s|read more)\\s*</a>",
+      "severity": "info",
+      "level": "modernize",
+      "category": "a11y",
+      "message": "Texto de enlace no descriptivo ('clic aquí', 'leer más'): sin contexto fuera de la frase.",
+      "fix": "Texto que describa el destino (ej. 'Ver expediente 0018'). (UI Skills: fixing-accessibility, wcag-audit-patterns)",
+      "auto_fixable": false,
+      "playbook": "HTML-STRUCTURE"
+    },
+    {
+      "id": "a11y-input-sin-label",
+      "applies_to": ["html", "twig"],
+      "regex": "<input\\b(?![^>]*type=[\"'](hidden|submit|button|reset|image)[\"'])(?![^>]*aria-label)(?![^>]*aria-labelledby)(?![^>]*\\bid=)[^>]*>",
+      "severity": "info",
+      "level": "restructure",
+      "category": "a11y",
+      "message": "Input sin etiqueta asociable (sin id para <label for>, ni aria-label/labelledby). Heurístico.",
+      "fix": "Agregar <label for> (vía id) o aria-label. Excluir hidden/submit. (UI Skills: fixing-accessibility, wcag-audit-patterns)",
+      "auto_fixable": false,
+      "playbook": "HTML-STRUCTURE"
+    },
+    {
+      "id": "css-outline-none-sin-focus",
+      "applies_to": ["css"],
+      "regex": "outline\\s*:\\s*(none|0)\\b",
+      "severity": "warning",
+      "level": "modernize",
+      "category": "a11y",
+      "message": "outline:none elimina el foco visible del teclado sin reemplazo.",
+      "fix": "Si se quita, dar foco visible con :focus-visible { outline: 2px solid ... } o box-shadow. (UI Skills: fixing-accessibility, baseline-ui)",
+      "auto_fixable": false,
+      "playbook": "CSS-CLEANUP"
+    },
+    {
+      "id": "css-anima-layout-prop",
+      "applies_to": ["css"],
+      "regex": "(transition|animation)(-property)?\\s*:[^;}]*\\b(width|height|top|left|right|bottom|margin|padding)\\b",
+      "severity": "warning",
+      "level": "modernize",
+      "category": "perf",
+      "message": "Animar propiedades de layout (width/height/top/left/margin/padding) causa reflow/jank.",
+      "fix": "Animar solo transform y opacity (compositor). Para mover: translate; para tamaño: scale. (UI Skills: fixing-motion-performance, baseline-ui)",
+      "auto_fixable": false,
+      "playbook": "CSS-CLEANUP"
+    },
+    {
+      "id": "css-transition-all",
+      "applies_to": ["css"],
+      "regex": "transition\\s*:\\s*all\\b",
+      "severity": "info",
+      "level": "modernize",
+      "category": "perf",
+      "message": "transition: all anima cualquier cambio (incluidos props de layout caros) y es impredecible.",
+      "fix": "Especificar las propiedades exactas: transition: transform .2s, opacity .2s. (UI Skills: make-interfaces-feel-better, baseline-ui)",
+      "auto_fixable": false,
+      "playbook": "CSS-CLEANUP"
+    },
+    {
+      "id": "css-will-change-all",
+      "applies_to": ["css"],
+      "regex": "will-change\\s*:\\s*all\\b",
+      "severity": "info",
+      "level": "modernize",
+      "category": "perf",
+      "message": "will-change: all promueve capas innecesarias y consume memoria.",
+      "fix": "Usar solo transform/opacity/filter, y solo durante una animación activa. (UI Skills: fixing-motion-performance)",
+      "auto_fixable": false,
+      "playbook": "CSS-CLEANUP"
+    },
+    {
+      "id": "css-keyframes-reduced-motion",
+      "applies_to": ["css"],
+      "regex": "@keyframes\\b",
+      "severity": "info",
+      "level": "modernize",
+      "category": "a11y",
+      "message": "Animación con @keyframes: verificar que se respete prefers-reduced-motion.",
+      "fix": "Envolver/atenuar en @media (prefers-reduced-motion: reduce) { animation: none } para usuarios sensibles. (UI Skills: fixing-motion-performance, fixing-accessibility)",
+      "auto_fixable": false,
+      "playbook": "CSS-CLEANUP"
+    },
+    {
+      "id": "js-scroll-anim",
+      "applies_to": ["js"],
+      "regex": "addEventListener\\s*\\(\\s*['\"]scroll['\"]",
+      "severity": "info",
+      "level": "modernize",
+      "category": "perf",
+      "message": "Animar/medir desde evento scroll provoca layout thrashing y jank.",
+      "fix": "Usar IntersectionObserver (visibilidad) o scroll-timeline CSS; no leer scrollTop/scrollY por frame. (UI Skills: fixing-motion-performance)",
+      "auto_fixable": false,
+      "playbook": "JS-SAFE-MODERNIZE"
     }
   ]
 }

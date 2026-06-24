@@ -28,6 +28,34 @@ Antes de tocar nada, preguntar al usuario hasta donde llevar el frontend. **Nunc
 7. **Actualizar estado**: bloque `frontend` de `migration-state.json` (status por archivo -> done).
 8. **Auto-actualizar playbook**: si aparecio un patron nuevo, integrarlo (protocolo §inicial del playbook).
 
+## Criterio de calidad por nivel (UI Skills)
+Lo que una regla regex NO captura: taste, jerarquía, micro-interacción. Fuentes en `${CLAUDE_PLUGIN_ROOT}/knowledge/ui-skills-sources.md`. Filtrado a Twig/HTML/CSS/JS vanilla (sin React/Tailwind/GSAP).
+
+**modernize** — accesibilidad + motion seguros (detectables por reglas + criterio):
+- Todo control interactivo tiene nombre accesible; `<button>`/`<a>` solo-ícono → `aria-label` + ícono `aria-hidden`. Preferir HTML nativo antes que ARIA.
+- Foco SIEMPRE visible: si se quita `outline`, dar reemplazo con `:focus-visible`.
+- Animar SOLO `transform`/`opacity` (compositor), nunca props de layout; ≤200ms, `ease-out` en entrada; respetar `@media (prefers-reduced-motion: reduce)`.
+- Números que cambian → `font-variant-numeric: tabular-nums` (evita salto de layout). `-webkit-font-smoothing: antialiased` en el root.
+- *(baseline-ui, fixing-accessibility, fixing-motion-performance)*
+
+**restructure** — jerarquía, foco, líneas de lectura, micro-interacción:
+- Bloques de texto con **line-length 60–75ch** (`max-width`); jerarquía tipográfica clara (escala de tamaños/pesos intencional).
+- **Escala de espaciado consistente** (no valores mágicos sueltos): derivar de un set (4/8/12/16/24/32…).
+- **Concentric radius**: radio exterior = interior + padding (lo más común que hace ver "off" una UI anidada). Sombras en capas > bordes sólidos. Alineación óptica > geométrica en íconos/triángulos.
+- Controles interactivos con **hit area ≥ 40×40px**; `scale(0.96)` al presionar para feedback táctil.
+- Entradas: dividir en chunks y **stagger ~100ms**; salidas más sutiles que entradas; nunca `transition: all` (propiedades exactas).
+- Forms: error junto a la acción, ligado con `aria-describedby` + `aria-invalid`; empty states con una acción clara; nunca depender solo del color.
+- Modales: atrapar foco, foco inicial dentro, `Escape` cierra, restaurar foco al cerrar. Headings sin saltar niveles; `th` en tablas de datos.
+- *(make-interfaces-feel-better, wcag-audit-patterns)*
+
+**redesign** — criterio de diseño (REQUIERE spec; el agente rechaza sin ella):
+- Evitar lo genérico-de-IA: hero = tesis (lo más característico del dominio), no el patrón "número grande + label + gradiente". Tipografía con personalidad (display + body deliberados), no una fuente neutra.
+- Estructura = información: numeración/eyebrows/divisores solo si codifican algo real (no `01/02/03` decorativo).
+- Un **signature element** memorable; **1 color de acento por vista**; restraint ("antes de salir, quitá un accesorio"). Motion deliberado, no disperso.
+- Quality floor sin anunciarlo: responsive a mobile, foco visible por teclado, `prefers-reduced-motion` respetado.
+- Copy desde el lado del usuario: voz activa ("Guardar cambios", no "Enviar"), mismo nombre de acción en todo el flujo, errores con dirección (qué pasó + cómo arreglarlo), empty = invitación a actuar.
+- *(emil-design-eng, anthropics/frontend-design)*
+
 ## Reporte
 Tabla por lenguaje: `archivo | nivel | fixes aplicados | validacion`. Separar JS / CSS / HTML / Twig. Conteos, sin relleno.
 
