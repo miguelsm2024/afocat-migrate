@@ -36,6 +36,7 @@ Antes de cerrar cada tarea de migración:
 | `"https://<dominio>/<base>/..."` interno en PHP/JS/Twig | Referencia interna hardcodeada | `[DOMAIN-REFERENCES]` |
 | `var` / `==` en JS propio (`views/app/js/`) | Modernización segura | `[JS-SAFE-MODERNIZE]` |
 | Layout con N iframes `page_iframe_*` + botones `btn_i_*` | Navegación multi-vista | `[IFRAME-NAV]` |
+| Rediseño visual / dark mode sobre theme admin | Look & feel + UX | `[VIEW-REDESIGN]` |
 
 > **Frontend = nivel en runtime.** Los procedimientos `[JS-MODERNIZE]`/`[HTML-STRUCTURE]`/`[CSS-CLEANUP]`/`[FRONTEND-REDESIGN]` se aplican según el **nivel** que el usuario elige en `/frontend-upgrade` (modernize ⊂ restructure ⊂ redesign). El skill SIEMPRE pregunta el nivel; nunca se asume.
 
@@ -659,6 +660,33 @@ Invoke-WebRequest -Uri "http://localhost:8080/sys_Afocat/logout/" -MaximumRedire
 - Layout `float`/tablas-de-layout → flexbox/grid; responsive/breakpoints.
 - **EXIGE spec de diseño por pantalla**: layout objetivo, breakpoints, referencia visual. El agente `frontend-migrator` **rechaza redesign sin spec**.
 - Siempre mostrar antes/después. Nunca re-maquetar a ciegas. No cambiar copy ni lógica.
+
+### `[VIEW-REDESIGN]` — rediseño visual + dark mode por CAPA DE OVERRIDE (sin reescribir el theme)
+**Problema:** los proyectos Ocrend traen un theme admin (Bootstrap "Modern Admin" en app-assets) compartido por TODAS las vistas y múltiples layouts (`overall`, `overall_snt`, `overall_basic`, `overall_graf`, `overall_two`). Reescribir el theme rompería las 50+ vistas a la vez. **Solución: una capa CSS de override + variables, sin tocar el theme base.** Validado en erp__Fasmot (piloto dashboard → replicado a 5 layouts + login).
+
+**1. `views/app/css/redesign.css`** — variables CSS para tema claro/oscuro y override minimalista:
+```css
+:root { --rd-bg:#f4f6fa; --rd-surface:#fff; --rd-text:#1f2937; --rd-accent:#2563eb; /* ... */ }
+html[data-theme="dark"] { --rd-bg:#0f1623; --rd-surface:#182030; --rd-text:#e5e9f0; --rd-accent:#4f8cff; /* ... */ }
+.card,.header-navbar,#cont_menu,.form-control,.table { /* usar var(--rd-*) con !important para ganar al theme */ }
+```
+Cargar este CSS **al final** de los `<link>` del `<head>` (gana especificidad). Usa `!important` puntual porque el theme ya trae reglas.
+
+**2. Dark mode sin flash (FOUC):** script inline en `<head>` ANTES de los CSS, que aplica el tema guardado antes de pintar:
+```html
+<script>(function(){try{var t=localStorage.getItem('rd-theme')||'light';document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+```
+`redesign.js`: `toggleTheme()` setea `data-theme` en `<html>` + persiste en localStorage. Botón ☀/☾ en el navbar principal. Los **iframes** (cada módulo es un iframe con su layout) heredan el tema vía localStorage + el mismo anti-flash en cada layout (re-aplican al cargar).
+
+**3. Replicar a TODOS los layouts** (no solo uno): inyectar idempotente en cada `<layout>.twig` el anti-flash + `redesign.css` antes de `</head>` y `redesign.js` antes de `</body>`. El toggle visible solo en el layout principal; el resto hereda. Cuidar layouts con `</body>` duplicado (legacy) → no duplicar la inyección.
+
+**4. Dinamismo JS reutilizable** (`window.RD`): `showLoader/hideLoader`, `toast` (usa toastr si está), `validarForm(sel)` (marca `[required]` vacíos), `lockBtn/unlockBtn` (anti doble-submit). Capa aditiva, no reemplaza la lógica existente.
+
+**5. SEGURIDAD — quitar `polyfill.io`:** el dominio `polyfill.io` fue **comprometido en un ataque supply-chain (2024)** e inyectaba malware. Buscar y eliminar `<script src="...polyfill.io...">` de TODAS las vistas (`grep -rl 'polyfill\.io'`). También revisar recursos externos frágiles (photobucket/themeforest/imgur) → reportar/localizar.
+
+**6. CDN híbrido:** críticos (jQuery/Bootstrap, normalmente ya locales en app-assets) local; resto (DataTables/charts) CDN con versión fija. Localizar DataTables si se requiere funcionamiento offline/VPS sin internet.
+
+**Post:** cache-bust `?v=` en `redesign.css/js`, borrar `app/templates/.cache/`, hard refresh. Verificar dashboard + navegación entre iframes con el tema. Es rediseño por capa → reversible (quitar el link/js vuelve al theme original).
 
 ---
 

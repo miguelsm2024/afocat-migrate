@@ -305,6 +305,18 @@
       "playbook": "JS-SAFE-MODERNIZE"
     },
     {
+      "id": "polyfill-io-comprometido",
+      "applies_to": ["html", "twig", "js"],
+      "regex": "polyfill\\.io",
+      "severity": "fatal",
+      "level": "modernize",
+      "category": "xss",
+      "message": "Referencia a polyfill.io: dominio COMPROMETIDO (supply-chain attack 2024) que inyecta malware.",
+      "fix": "Eliminar el <script src=...polyfill.io...>. Si se necesitan polyfills, usar cdnjs polyfill-library autohospedado o targets modernos.",
+      "auto_fixable": false,
+      "playbook": "VIEW-REDESIGN"
+    },
+    {
       "id": "js-hardcoded-url",
       "applies_to": ["js"],
       "regex": "['\"]https?://[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/",
