@@ -701,6 +701,22 @@ Cargar este CSS **al final** de los `<link>` del `<head>` (gana especificidad). 
 - **DataTables**: filas `.sorting_1/2/3` (gris `#fafafa`), striped, paginación, filter/length, scrollHead — ver `[DATATABLES-CONFIG]`.
 - **Inline fijos**: `html[data-theme="dark"] [style*="color:#000"]/[style*="background:#fff"] {…!important}` neutraliza estilos inline sin tocar el HTML (un `!important` externo gana a inline sin `!important`).
 
+**Delimitación de contenedores ("todo se ve plano"):** queja típica tras tematizar — no se distingue dónde empieza/termina cada bloque. Causa: el borde de card ≈ el fondo de la app (contraste mínimo) y la sombra del theme es muy suave. Fix de mayor impacto/menor riesgo (validado erp__Fasmot): subir el contraste de **borde + sombra + fondo de app**, no bordear cada `div`.
+```css
+:root {
+  --rd-bg:            #e7ebf2;   /* fondo app MÁS gris que el surface -> las cards blancas resaltan */
+  --rd-border-strong: #aab7cc;   /* claramente visible (≠ --rd-border, que es sutil para inputs) */
+  --rd-card-shadow:   0 1px 3px rgba(16,24,40,.10), 0 8px 20px rgba(16,24,40,.14);
+}
+html[data-theme="dark"] { --rd-bg:#0c121d; --rd-border-strong:#3d4f6b; --rd-card-shadow:0 2px 8px rgba(0,0,0,.5),0 10px 26px rgba(0,0,0,.45); }
+.card { border:1px solid var(--rd-border-strong)!important; box-shadow:var(--rd-card-shadow)!important; }
+.card-header:not([class*="bg-"]) { background:var(--rd-surface-2)!important; border-bottom:1px solid var(--rd-border-strong)!important; }
+.card-header:empty { display:none!important; }                 /* headers vacíos: sin barra fantasma */
+fieldset,.panel,.box,.well { background:var(--rd-surface)!important; border:1px solid var(--rd-border-strong)!important; border-radius:var(--rd-radius); box-shadow:var(--rd-card-shadow); padding:1rem 1.25rem; margin-bottom:1rem; }
+.rd-box { /* utilidad opcional para delimitar a mano cualquier div */ background:var(--rd-surface); border:1px solid var(--rd-border-strong); border-radius:var(--rd-radius); box-shadow:var(--rd-card-shadow); padding:1rem 1.25rem; }
+```
+**No-obvio:** subir el contraste con timidez (borde casi igual al fondo) = no se nota. El fondo de app más gris que el surface es lo que hace "saltar" las cards. Ajustar 2 variables (`--rd-bg`, `--rd-border-strong`) según gusto.
+
 ---
 
 ## 14c. Procedimientos transversales reutilizables (acción base)
@@ -756,6 +772,25 @@ MODULOS.forEach(function(m){
 });
 ```
 Gana: 1 array como fuente de verdad (agregar módulo = 1 string), elimina bugs de flag cruzado, guard null en onload (un id faltante ya no rompe TODO el menú). Mismo comportamiento (lazy + estado preservado + dblclick recarga). Sirve en varios layouts (`overall`, `overall_snt`): los guards ignoran módulos ausentes. Recordar cache-bust `?v=` en el `<script>` + vaciar `.cache/*` (no el dir raíz, §16). Validado en erp__Fasmot (`inicio/menu.js`, 22 módulos, 110→~55 líneas, bug estadisticas/libdiario corregido).
+
+**⚠ Gotcha: widget "global" incluido en el layout de contenido → se repite en CADA iframe.** Distinguir dos clases de layout: **TOP** (el que tiene la navbar + los `<iframe>`, ej. `overall`/`overall_snt`) vs **CONTENIDO** (el que cada módulo extiende y se carga dentro del iframe, ej. `overall_two`/`overall_graf` — sin navbar). Un widget flotante (FAB de soporte/incidencias/chat) puesto con `{% include %}` en el layout de CONTENIDO aparece dentro de **cada** iframe → N copias. Regla:
+- Incluir el widget **solo en los layouts TOP**. Sacarlo de los de contenido.
+- Si necesita capturar/operar sobre la vista, montarlo en la **ventana top** y **componer los iframes** desde ahí: `html2canvas(document.body)` del padre + iterar `$('iframe:visible')` y dibujar cada uno sobre el canvas. (Detección de top en JS si hace falta: `window.self === window.top`.)
+- Botón disparador: 1 solo, en la navbar (junto a otros controles globales tipo toggle de tema), no flotando. Validado en erp__Fasmot (widget de tickets: FAB repetido en cada iframe → 1 botón en navbar + include solo en top).
+
+### `[LAYOUT-PARTIAL]` — navbar/elementos compartidos → 1 partial con `{% include %}`
+**Síntoma:** el mismo `<nav>` (o footer/menú) está **copiado** en varios `<layout>.twig` (overall, overall_snt, …). Derivan con el tiempo: brand distinto, un botón en uno y no en otro, ids duplicados, bugs corregidos en una copia y no en la otra. **No** hay `{% include %}` en el proyecto (Ocrend llama `render('x/y')` sin extensión).
+
+**Fix:** extraer el bloque a `app/templates/partials/<nombre>.twig` (1 fuente) y reemplazar cada copia por un include. Lo que difiere va por **variable**:
+```twig
+{# en cada layout #}
+{% include 'partials/navbar' with {'navbar_brand': 'SysFASMOT'} %}
+{# en el partial #}
+<h3 class="brand-text">{{ navbar_brand|default('SysFASMOT') }}</h3>
+```
+**Resolución de ruta:** Ocrend usa un `TwigAutoExtLoader` (root `./app/templates/`) que auto-agrega `.twig` si el nombre no trae extensión → `{% include 'partials/navbar' %}` resuelve a `app/templates/partials/navbar.twig`. `{% include %}` hereda el contexto del padre (variables `owner_user`, `Get_Acc`, etc. siguen disponibles; `with {…}` solo añade).
+
+**Al extraer, aprovechar para depurar** (cosas que se ven al unificar copias): ids duplicados (HTML inválido; jQuery liga solo el 1º — conservar el id en el que el JS lo usa, renombrar el otro), `onclick` que apunta a ids inexistentes (interacción muerta), typos de clase, bloques comentados muertos, inline-styles que rompen el dark. Tematizar el resultado en `redesign.css` (`.header-navbar …`). Validado en erp__Fasmot (overall+overall_snt, −392/+144 líneas, 4 bugs reales corregidos).
 
 ### `[DATATABLES-CONFIG]` — estandarizar tablas (DataTables.net) por capa compartida
 **Problema en proyectos Ocrend:** decenas/cientos de `.DataTable()` (erp__Fasmot: ~145 en 30 JS), todas client-side, con `autoWidth:true` sin `table-layout` → columnas saltan al redimensionar; `scrollX:true` sin `columns.adjust()` → header desalineado y **ancho 0 al mostrarse en un iframe oculto**; búsqueda por columna copiada a mano (sin debounce); **ninguna con guarda** → `Cannot reinitialise DataTable`.
@@ -896,6 +931,7 @@ Stack típico: `web` (nginx) sirve estáticos `:ro` + `app` (php:8.2-fpm) + `db`
 | `Classes/PHPExcel/Writer/Excel2007/StringTable.php` (FTP) | ✓ | reorden datatype-check antes de isset — mata Deprecated float→int key (§9) |
 | `app/models/Expediente.php` (FTP) | ✓ | MODEL + IRouter nullable + 10× `explode/AsociadoCertificadoID` sin guard `count($cat)>1` |
 | **`panel_PA/` (proyecto Ocrend hermano en xampp/htdocs)** | ✓ | Migración COMPLETA local: COMPOSER + OCREND-CORE (Kernel 13 archivos) + API-SILEX (MicroApp copiado) + MODEL + PDF-TEMPLATE. 47 archivos `php -l` OK. Boot verificado hasta capa DB (500 = `Unknown database`, no migración). Prueba que el toolkit es reutilizable en otro proyecto Ocrend |
+| Frontend erp__Fasmot (post-migración, 2026-06-24/25) | ✓ | VIEW-REDESIGN + DATATABLES-CONFIG aplicados; delimitación de contenedores; navbar → `[LAYOUT-PARTIAL]` (overall+snt, 4 bugs); widget tickets 1 botón en navbar (no por iframe); tabla `tickets` (DDL en `db/`); unificación `pc-oficina`→`main`. Gotchas: `.cache` dir, DDL no-git, merge multi-PC (§16) |
 
 ---
 
@@ -913,6 +949,8 @@ Stack típico: `web` (nginx) sirve estáticos `:ro` + `app` (php:8.2-fpm) + `db`
 - **Ruido de scan: excluir `.cache/` y backups `* (N).php`.** En panel_PA el scan crudo dio 456 findings; excluyendo `app/templates/.cache/` (Twig compilado, regenera) y archivos duplicados tipo `Start (1).php` bajó a 180 reales. Los compilados Twig 2 en `.cache/` NO los carga Twig 3 (distinto hash de cache key) → inertes, no fatales.
 - **dynamic-property falso positivo por herencia:** `#[\AllowDynamicProperties]` en las clases base `Kernel/Models/Models.php` y `Kernel/Controllers/Controllers.php` se hereda por todos los models/controllers concretos. El scanner (regex) sigue marcando cada `$this->x` dinámico en las subclases pero ya están cubiertos — no tocar.
 - **⚠ Borrar el dir `.cache/` entero da 500 (NO solo vaciarlo):** `rm -rf app/templates/.cache` elimina el dir raíz que Twig espera; Twig auto-crea los subdirs hash (`.cache/59/...`) pero **no** el root → `RuntimeException: Unable to write cache file` = 500 en TODA vista. Síntoma: tras "borrar cache" para cache-bust, el sitio cae entero. Fix: `mkdir -p app/templates/.cache` (Twig repobla solo). Permanente: borrar solo el **contenido** → `rm -rf app/templates/.cache/*` (o `find app/templates/.cache -mindepth 1 -delete`). Validado en erp__Fasmot 2026-06-24 (cae todo el ERP tras borrar el dir; recreándolo vuelve 200).
+- **⚠ El esquema de DB NO viaja en git (módulo nuevo → falta la tabla en otra PC/instalación):** un módulo Ocrend (controller + model + twig + js) se mergea completo, pero el `CREATE TABLE` se creó a mano en la BD de quien lo desarrolló y **no** está versionado → en otra PC el módulo da error de "tabla inexistente". Fix: derivar el DDL del **modelo** (columnas del `insert()`/`update()`, el `SELECT … FROM <tabla>`, tipos por uso), igualar **engine/charset a una tabla existente** (`SELECT ENGINE, TABLE_COLLATION FROM information_schema.TABLES WHERE TABLE_NAME='users'`), crear la tabla, y **guardar el DDL en el repo** (`db/<tabla>.sql`) para que sea portable (`mysql -u… <bd> < db/<tabla>.sql`). Validado en erp__Fasmot (tabla `tickets`). Lección: al agregar un módulo con tabla nueva, commitear su `.sql` junto al código.
+- **Unificar trabajo entre PCs (clon en otra máquina, rama por equipo):** flujo seguro. `git fetch --all`; analizar divergencia: `git merge-base A B`, `git log --oneline <base>..rama`, archivos en común `git diff --name-only <base> rama` (= candidatos a conflicto). **Preview sin tocar nada:** `git merge-tree --write-tree A B` (exit 0 = merge limpio). Integrar: si la rama de la otra PC ya está **pusheada/compartida**, hacer **merge** (no rebase de rama compartida — reescribir historia pusheada rompe al otro). Rebase solo de commits **locales no pusheados**. Tras merge: **vaciar `.cache/*`** (si cambiaron twigs), probar la app (200 + módulos nuevos), push. Cerrar: borrar la rama (`git push origin --delete <rama>` + `git remote prune origin`) y en la otra PC `git checkout main && git pull && git remote prune origin && git branch -D <rama>`. Validado en erp__Fasmot (`pc-oficina` → `main`, merge limpio 0 conflictos).
 - **500 de DB ≠ 500 de migración:** un 500 tras migrar puede ser la página de Symfony ErrorHandler por `Unknown database` (entorno), no código. Distinguir: `framework.debug: true` + leer `C:\xampp\apache\logs\error.log` (los `[php:notice] ... [critical] Uncaught Exception` salen ahí aunque el Router devuelva 500 plano). Si el boot llega hasta la capa DB, la migración PHP 8.2 está OK.
 - **Whitespace antes de `<?php` en templates mPDF:** `gene_Comprimido.php` tenía una línea en blanco antes de `<?php` → output antes de headers ("headers already sent"). Al aplicar PDF-TEMPLATE, recortar todo lo previo a `<?php`.
 - **Falsos positivos del scan en comentarios y firmas ya-nullable (v1.1):** `deprecation_scan`/`frontend_scan` matcheaban dentro de docblocks (`* ... Twig_Extension`) y código comentado (`// substr(...)`), y `non-nullable-default-null` marcaba firmas que YA eran `?Tipo $x = null`. Inflaba el conteo "fatal" ~10×. Fix en el engine: `isCommentLine()` skipea líneas que arrancan con `//`/`*`/`/*`/`{#`; y el regex de `non-nullable-default-null` lleva lookbehind `(?<!\?)(?<!\?\\)` para ignorar `?IRouter`/`?\Throwable`. En erp__Fasmot esto bajó CORE 10→3 y reveló que los reales eran solo constructores `IRouter $router = null` sin `?` (fix: `?IRouter`, idéntico al de OCREND-CORE).
