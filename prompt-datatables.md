@@ -66,7 +66,7 @@ Analiza **cada una** de las tablas del proyecto. No edites código en esta fase.
    - ¿Estructura regular (un `<thead>` con `<th>`, `<tbody>`)? Marca las que tengan `colspan`/`rowspan`/celdas combinadas → DataTables no las maneja bien (van a fix manual).
 3. **Captura** la config de init actual y el **método de búsqueda por columna actual** de cada tabla.
 4. **Diagnostica la causa concreta** de cada síntoma (no descripciones genéricas):
-   - *Pierde proporciones / anchos saltan* → típicamente `autoWidth:true` + sin `table-layout:fixed` + sin anchos explícitos.
+   - *Pierde proporciones / anchos saltan* → o bien (modo A) `autoWidth:true` con CSS que **pisa** el `width`/`table-layout` de `table.dataTable` y rompe la sync de scrollX, o falta de `columns.adjust()` en resize/visible; o bien (modo B) `table-layout:fixed` sin anchos `columnDefs` explícitos.
    - *Header desalineado del cuerpo al redimensionar* → scroll/`scrollX` sin `columns.adjust()` en resize.
    - *Tabla colapsada / ancho 0 al mostrarse* → init en iframe/tab oculto sin re-`adjust` al hacerse visible.
    - *Búsqueda por columna rota/inconsistente* → inputs mal cableados, sin debounce, en el lugar equivocado, o re-init que los descarta.
@@ -89,21 +89,28 @@ Centraliza todo en **dos archivos nuevos**, parametrizables, sin lógica de nego
 - `views/app/js/tables-init.js` — expone p. ej. `window.RDTables.init(selector, opts)` y un auto-bootstrap por clase (p. ej. `table[data-rdt]`).
 - `views/app/css/tables.css` — reglas de proporción/overflow + estilo de los inputs de búsqueda.
 
-Usa lo siguiente como **baseline de referencia**, adaptándolo por tabla según tu análisis (algunas necesitarán `scrollX`, otras `responsive`, otras anchos por `columnDefs`; las `serverSide` mantienen su `ajax`):
+Usa lo siguiente como **baseline de referencia**, adaptándolo por tabla según tu análisis (algunas necesitarán `responsive`, otras anchos por `columnDefs`; las `serverSide` mantienen su `ajax`).
 
-**Defaults de DataTables (estabilidad de ancho):**
+> **Modo de ancho — decisión (validada en erp__Fasmot).** Hay 2 modos y **NO se combinan**:
+> - **(A) Ancho por contenido (una línea, tipo Excel) — DEFAULT, el usado en producción:** `autoWidth:true` + celdas `white-space:nowrap`; si la tabla excede el contenedor → **scroll-x**. **Clave con `scrollX`:** DataTables crea 3 tablas (scrollHead/Body/Foot) y sincroniza sus anchos con el `width` inline que calcula `autoWidth`. **NO pises ese `width` ni el `table-layout` de `table.dataTable`** o head/body/foot se desalinean. Deja que DataTables los gestione.
+> - **(B) Proporcional fijo (alternativa secundaria):** `autoWidth:false` + `table-layout:fixed; width:100%` + celdas `ellipsis` + `columnDefs` con `width:'NN%'`. Solo si quieres columnas proporcionales que nunca scrollean horizontalmente. Más rígido; descártalo si las tablas son anchas.
+
+**Defaults de DataTables (modo A — ancho por contenido):**
 ```js
 const TABLE_DEFAULTS = {
-  autoWidth: false,        // CLAVE: no recalcular anchos por contenido
+  autoWidth: true,         // mide el contenido y sincroniza head/body/foot (no pisar width en CSS)
   scrollX: true,           // overflow horizontal en vez de aplastar columnas (si la tabla es ancha)
   scrollCollapse: true,
   orderCellsTop: true,     // ordenar por la fila de títulos cuando los filtros van en otra fila
   deferRender: true,
-  // language: { url: '<ruta LOCAL del json es-ES de DataTables>' }, // localización offline-safe
-  // columnDefs: [{ targets: [...], width: 'NN%' }],                 // anchos explícitos -> proporción estable
-  // responsive: true,  // SOLO en tablas pensadas para colapsar en móvil; no combinar con scrollX
+  language: LANG_ES,       // objeto ES inline (offline-safe, sin CDN ni url:). Ver nota abajo.
+  // responsive: true,     // SOLO en tablas pensadas para colapsar en móvil; no combinar con scrollX
 };
+// Modo B (proporcional): autoWidth:false + columnDefs:[{ targets:[...], width:'NN%' }] + CSS table-layout:fixed.
 ```
+
+> **`language` offline:** define `LANG_ES` como **objeto inline** (no `{ url: ... }`), p. ej.
+> `{ "search":"Buscar:", "lengthMenu":"Mostrar _MENU_ registros", "zeroRecords":"Sin resultados", "info":"Mostrando _START_ a _END_ de _TOTAL_ registros", "paginate":{ "next":"Siguiente", "previous":"Anterior" }, ... }`. Evita peticiones de red en VPS sin internet.
 
 **Inicializador idempotente (evita doble init):**
 ```js
@@ -152,27 +159,35 @@ $(window).on('resize', adjustAll);
 // dt.columns.adjust().draw(false) — para recalcular con el ancho real.
 ```
 
-**CSS (proporción estable + contenido que no rompe + inputs que no ensanchan):**
+**CSS (modo A — ancho por contenido + scroll-x + inputs que no ensanchan):**
 ```css
-/* El navegador respeta los anchos definidos y los reparte proporcionalmente */
-table.dataTable, table.tbl-rdt { table-layout: fixed; width: 100% !important; }
-
-/* Contenido largo no estira la columna (mostrar completo en title/hover) */
-table.dataTable td, table.dataTable th,
-table.tbl-rdt td, table.tbl-rdt th {
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+/* Ancho por CONTENIDO en una línea. Con scrollX, DataTables sincroniza el width
+   inline de scrollHead/Body/Foot calculado por autoWidth -> NO pisar width ni
+   table-layout en table.dataTable o se desalinean. Solo forzamos nowrap. */
+table.dataTable th, table.dataTable td {
+  white-space: nowrap; overflow: visible; text-overflow: clip;
 }
+/* (sin width/table-layout !important en table.dataTable: lo gestiona DataTables) */
 
-/* Scroll horizontal cuando la tabla excede el ancho del contenedor */
+/* Tablas simples NO-DataTables: ancho por contenido manual. */
+table.tbl-rdt:not(.dataTable) { table-layout: auto; width: auto; min-width: 100%; }
+table.tbl-rdt:not(.dataTable) th, table.tbl-rdt:not(.dataTable) td { white-space: nowrap; }
+
+/* Scroll horizontal cuando la tabla excede el contenedor (cubre head/foot clonados). */
 .dataTables_scrollBody { overflow-x: auto; }
+.dataTables_scrollHead, .dataTables_scrollFoot { overflow: hidden; }
 
 /* Inputs de búsqueda por columna que NO ensanchan la columna */
-.rdt-col-search { width: 100%; box-sizing: border-box; padding: 2px 4px; font-weight: normal; }
+.rdt-col-search, table.dataTable tfoot input {
+  width: 100%; box-sizing: border-box; padding: 3px 6px; font-weight: normal;
+}
 ```
 
-**Tablas HTML simples:** cuando la estructura sea regular, **inicialízalas con el mismo inicializador** para que hereden anchos estables + búsqueda por columna unificada. Si una tabla es estática/diminuta donde DataTables es excesivo, aplica solo el CSS (`table-layout: fixed`) y un filtro por columna mínimo. Las tablas con celdas combinadas (`colspan`/`rowspan`) van a tratamiento manual: documenta por qué.
+> **Modo B (proporcional):** si eliges ese modo, ahí sí usa `table.dataTable { table-layout: fixed; width: 100% !important; }` + `text-overflow: ellipsis` + `columnDefs` con `width:'NN%'`. **No mezcles con el modo A.**
 
-> Para tablas con contenido largo, considera el plugin `ellipsis` de DataTables (si ya está disponible localmente) o un `title` con el valor completo, para que el texto truncado siga siendo legible.
+**Tablas HTML simples:** cuando la estructura sea regular, **inicialízalas con el mismo inicializador** para que hereden anchos estables + búsqueda por columna unificada. Si una tabla es estática/diminuta donde DataTables es excesivo, aplica solo el CSS de la capa simple (`table.tbl-rdt:not(.dataTable)` → `table-layout:auto; min-width:100%`, modo A) y un filtro por columna mínimo. Las tablas con celdas combinadas (`colspan`/`rowspan`) van a tratamiento manual: documenta por qué.
+
+> En **modo A** el contenido no se trunca (va en una línea con scroll-x). Si usas **modo B** y truncas con `ellipsis`, añade un `title` con el valor completo (o el plugin `ellipsis` de DataTables si está local) para que siga siendo legible.
 
 ---
 
