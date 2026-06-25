@@ -40,7 +40,7 @@ No reinventes: converge a una **capa compartida y parametrizable** (un CSS + un 
   - **No** agregues CDNs nuevos: el entorno de producción puede correr **offline** (VPS sin internet). Si necesitas un asset (p. ej. localización de DataTables en español), **localízalo** reutilizando lo que ya existe.
   - **No** actualices la versión de DataTables como parte de esta tarea (control de alcance). Si detectas un bug que obliga a actualizar, **repórtalo aparte**.
   - **Idempotencia obligatoria:** todo init debe poder re-ejecutarse sin duplicar. Evita el error `Cannot reinitialise DataTable` con guarda (`$.fn.dataTable.isDataTable(el)`).
-  - **Cache-bust + cache de Twig:** a cada `<script>`/`<link>` que edites o agregues, añádele `?v=YYYYMMDDx`; y al final **borra `app/templates/.cache/`** para que Twig recompile. Verifica con hard refresh (Ctrl+Shift+R).
+  - **Cache-bust + cache de Twig:** a cada `<script>`/`<link>` que edites o agregues, añádele `?v=YYYYMMDDx`; y al final **vacía el CONTENIDO de `app/templates/.cache/`** (`rm -rf app/templates/.cache/*`) para que Twig recompile. ⚠ **NO borres el dir raíz** (`rm -rf .../.cache`): Twig no lo recrea → 500 en todo el sitio. Verifica con hard refresh (Ctrl+Shift+R).
   - Inyecta la capa compartida de forma **idempotente** en los layouts (antes de `</head>` el CSS, antes de `</body>` el JS), cuidando los layouts legacy con `</body>` **duplicado** (no inyectar dos veces).
 
 > **Antes de tocar nada, lee `[PLAYBOOK]` (por defecto `knowledge/playbook.md`):**
@@ -209,7 +209,7 @@ Para el piloto y luego para el conjunto, comprueba:
 - [ ] La **búsqueda por columna** filtra correctamente en **cada** columna, con debounce, **sin romper paginación ni ordenamiento**. En tablas `serverSide`, confirma que el endpoint **aplica** el filtro por columna; si no lo aplica, **repórtalo** (no cambies el backend a ciegas).
 - [ ] **Consola limpia:** sin `Cannot reinitialise DataTable`, sin `undefined`, sin errores nuevos.
 - [ ] Funciona en **todos los layouts** involucrados.
-- [ ] **Cache-bust** aplicado en cada include editado y **`app/templates/.cache/` borrado**.
+- [ ] **Cache-bust** aplicado en cada include editado y **contenido de `app/templates/.cache/` vaciado** (`rm -rf .cache/*`, NO el dir raíz → 500).
 - [ ] **Cero** cambios en lógica de negocio ni en códigos de respuesta del API.
 
 Prueba en al menos las vistas más usadas con tablas (lista las que verificaste).
