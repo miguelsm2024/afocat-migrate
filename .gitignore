@@ -8,3 +8,6 @@ mcp/**/package-lock.json
 # Estado/temporales
 *.log
 migration-state.local.json
+
+# Config local de Claude Code
+.claude/
